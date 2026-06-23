@@ -59,14 +59,15 @@ void ExternalMpvPlayer::play(const QString &url, const QString &title,
     // instead of a multi-second yt-dlp probe that cannot help.
     args << QStringLiteral("--ytdl=no");
 
-    // Keep a healthy read-ahead buffer for smooth network playback and
-    // fail faster on dead sources (default network-timeout is 60s).
+    // Keep a healthy read-ahead buffer for smooth network playback. Debrid
+    // REMUX links can be slow to return the first HTTP response when cold, so
+    // keep mpv's default 60s network timeout instead of failing too early.
     // (These do not speed up a normal start: that is bounded by the
     // server's first-byte latency and the seeks mpv makes to read the
     // container index up front -- which is also what makes seeking fast.)
     args << QStringLiteral("--cache=yes");
     args << QStringLiteral("--demuxer-readahead-secs=20");
-    args << QStringLiteral("--network-timeout=15");
+    args << QStringLiteral("--network-timeout=60");
 
     // Asahi Linux currently lacks the Vulkan video decode extension mpv probes
     // for HEVC. Avoid repeated failed hwaccel setup before software fallback.
