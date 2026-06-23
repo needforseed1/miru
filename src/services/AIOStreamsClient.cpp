@@ -5,7 +5,10 @@
 #include <QJsonObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QRegularExpression>
 #include <QUrl>
+
+#include <algorithm>
 
 #include <chrono>
 
@@ -36,7 +39,7 @@ void AIOStreamsClient::fetchStreams(const QString &type, const QString &id)
     request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("AIOStreamsLinux/0.1"));
 
     QNetworkReply *reply = m_network.get(request);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, type]() {
         reply->deleteLater();
 
         if (reply->error() != QNetworkReply::NoError) {
@@ -58,6 +61,26 @@ void AIOStreamsClient::fetchStreams(const QString &type, const QString &id)
             if (isPlayableStream(stream)) {
                 streams.append(normalizeStream(stream));
             }
+        }
+
+        // For an episode request, flag releases that have no explicit episode
+        // marker (S01 packs, "Complete", etc.) and rank them after the actual
+        // single-episode releases so a pack isn't the top hit.
+        if (type == QStringLiteral("series")) {
+            static const QRegularExpression episodeMarker(
+                QStringLiteral("(?i)(s\\d{1,2}[ ._-]*e\\d{1,3}|(?<![a-z0-9])\\d{1,2}x\\d{1,3}(?![a-z0-9]))"));
+            for (QVariant &entry : streams) {
+                QVariantMap item = entry.toMap();
+                const QString name = item.value(QStringLiteral("filename")).toString().isEmpty()
+                    ? item.value(QStringLiteral("title")).toString()
+                    : item.value(QStringLiteral("filename")).toString();
+                item.insert(QStringLiteral("seasonPack"), !episodeMarker.match(name).hasMatch());
+                entry = item;
+            }
+            std::stable_sort(streams.begin(), streams.end(), [](const QVariant &a, const QVariant &b) {
+                return a.toMap().value(QStringLiteral("seasonPack")).toBool()
+                     < b.toMap().value(QStringLiteral("seasonPack")).toBool();
+            });
         }
 
         emit streamsReady(streams);

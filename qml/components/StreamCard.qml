@@ -69,6 +69,13 @@ Rectangle {
                     outlineColor: Theme.success
                     textColor: Theme.success
                 }
+                BadgePill {
+                    visible: !!root.stream.seasonPack
+                    label: "SEASON PACK"
+                    bgColor: "transparent"
+                    outlineColor: Theme.gold
+                    textColor: Theme.gold
+                }
             }
 
             // the addon's own formatted description, preserved verbatim

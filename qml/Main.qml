@@ -1058,14 +1058,6 @@ ApplicationWindow {
                             }
                         }
 
-                        Text {
-                            Layout.fillWidth: true
-                            text: "Asahi Linux / Apple Silicon always starts with --hwdec=no to avoid unsupported Vulkan HEVC decode probes. Add custom args below if you want to override that."
-                            color: Theme.textMute
-                            font.pixelSize: Theme.fSmall
-                            wrapMode: Text.WordWrap
-                        }
-
                         RowLayout {
                             Layout.fillWidth: true
                             Layout.topMargin: Theme.s8

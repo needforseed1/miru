@@ -154,8 +154,6 @@ Rendering choices are configurable in Settings:
 - HDR/Vulkan hint adds `--gpu-api=vulkan --target-colorspace-hint=yes`.
 - Custom mpv args are appended last so users can override app defaults.
 
-On Asahi Linux / Apple Silicon, the app starts with `--hwdec=no` because mpv cannot use Vulkan HEVC video decode unless the GPU driver exposes `VK_KHR_video_decode_queue`.
-
 Only streams with direct `http` or `https` URLs are passed to `mpv`.
 
 Torrent streams are intentionally ignored:
