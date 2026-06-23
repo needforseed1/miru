@@ -12,6 +12,20 @@ ColumnLayout {
 
     spacing: Theme.s16
 
+    // Switch season and immediately select its first episode, so changing
+    // season starts a new release search without an extra click.
+    function selectSeason(season) {
+        selectedSeason = season
+        var first = null
+        for (var i = 0; i < videos.length; ++i) {
+            var v = videos[i]
+            if (v.season === season && (first === null || v.episode < first.episode))
+                first = v
+        }
+        if (first)
+            episodeSelected(first)
+    }
+
     // distinct, sorted seasons (skip specials / season 0)
     readonly property var seasons: {
         var set = {}
@@ -57,7 +71,7 @@ ColumnLayout {
                     font.bold: parent.current
                 }
                 HoverHandler { id: seasonHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.selectedSeason = parent.modelData }
+                TapHandler { onTapped: root.selectSeason(parent.modelData) }
             }
         }
     }
