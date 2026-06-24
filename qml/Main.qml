@@ -210,8 +210,9 @@ ApplicationWindow {
                 width: parent.width
                 spacing: Theme.s32
 
-                // hero
+                // hero (hidden while searching so results sit at the top)
                 Item {
+                    visible: appController.searchResults.length === 0
                     Layout.fillWidth: true
                     Layout.topMargin: Theme.s24
                     Layout.leftMargin: Theme.s32
