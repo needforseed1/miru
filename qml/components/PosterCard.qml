@@ -114,16 +114,6 @@ Item {
             }
         }
 
-        // hover ring
-        Rectangle {
-            anchors.fill: parent
-            radius: Theme.rLg
-            color: "transparent"
-            border.width: 2
-            border.color: Theme.accent
-            opacity: hover.hovered ? 1.0 : 0.0
-            Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
-        }
     }
 
     // ---- Title -------------------------------------------------------------
