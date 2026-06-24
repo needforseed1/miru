@@ -253,7 +253,12 @@ ApplicationWindow {
                         model: appController.continueWatching
                         delegate: ResumeCard {
                             item: modelData
-                            onClicked: clickedItem => root.openDetails(clickedItem)
+                            onClicked: clickedItem => {
+                                if (clickedItem.stream && clickedItem.stream.url)
+                                    appController.resumeContinueWatching(clickedItem.key)
+                                else
+                                    root.openDetails(clickedItem)
+                            }
                             onRemoveRequested: key => appController.removeContinueWatching(key)
                         }
                     }

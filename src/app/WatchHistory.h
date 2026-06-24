@@ -15,6 +15,7 @@ public:
     ~WatchHistory() override;
 
     QVariantList inProgress() const;
+    QVariantMap entry(const QString &key) const;
     double positionFor(const QVariantMap &media) const;
 
     void record(const QVariantMap &media, double position, double duration);

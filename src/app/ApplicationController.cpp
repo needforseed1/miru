@@ -10,6 +10,22 @@ QString stringValue(const QVariantMap &map, const QString &key)
 {
     return map.value(key).toString();
 }
+
+QStringList stringListValue(const QVariant &value)
+{
+    QStringList out = value.toStringList();
+    if (!out.isEmpty()) {
+        return out;
+    }
+
+    for (const QVariant &entry : value.toList()) {
+        const QString item = entry.toString();
+        if (!item.isEmpty()) {
+            out.append(item);
+        }
+    }
+    return out;
+}
 }
 
 ApplicationController::ApplicationController(QObject *parent)
@@ -229,6 +245,7 @@ QVariantMap ApplicationController::currentPlaybackMedia(const QVariantMap &strea
     if (stringValue(media, QStringLiteral("poster")).isEmpty()) {
         media.insert(QStringLiteral("poster"), m_selectedMeta.value(QStringLiteral("poster")).toString());
     }
+    media.insert(QStringLiteral("stream"), stream);
 
     return media;
 }
@@ -414,9 +431,6 @@ void ApplicationController::playStream(int index)
     const QString url = stream.value(QStringLiteral("url")).toString();
     const QString title = stream.value(QStringLiteral("title")).toString();
     const QVariantMap headers = stream.value(QStringLiteral("headers")).toMap();
-    m_currentPlaybackMedia = currentPlaybackMedia(stream);
-    const double startSeconds = m_watchHistory.positionFor(m_currentPlaybackMedia);
-
     // Pick subtitles in the preferred language (a couple, mpv selects the
     // first). Keep the count small so it does not delay playback start.
     QStringList subtitleUrls;
@@ -432,9 +446,36 @@ void ApplicationController::playStream(int index)
         }
     }
 
+    m_currentPlaybackMedia = currentPlaybackMedia(stream);
+    if (!subtitleUrls.isEmpty()) {
+        m_currentPlaybackMedia.insert(QStringLiteral("subtitleUrls"), subtitleUrls);
+    }
+    const double startSeconds = m_watchHistory.positionFor(m_currentPlaybackMedia);
+
     const QStringList extraArgs = QProcess::splitCommand(m_mpvExtraArgs);
     m_player.play(url, title, headers, subtitleUrls,
                   m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint, extraArgs, startSeconds);
+}
+
+void ApplicationController::resumeContinueWatching(const QString &key)
+{
+    const QVariantMap entry = m_watchHistory.entry(key);
+    const QVariantMap stream = entry.value(QStringLiteral("stream")).toMap();
+    const QString url = stream.value(QStringLiteral("url")).toString();
+    if (entry.isEmpty() || url.trimmed().isEmpty()) {
+        setStatusMessage(QStringLiteral("Saved release is unavailable; choose a release from details"));
+        return;
+    }
+
+    const QString title = stream.value(QStringLiteral("title")).toString();
+    const QVariantMap headers = stream.value(QStringLiteral("headers")).toMap();
+    const QStringList subtitleUrls = stringListValue(entry.value(QStringLiteral("subtitleUrls")));
+    const QStringList extraArgs = QProcess::splitCommand(m_mpvExtraArgs);
+
+    m_currentPlaybackMedia = entry;
+    m_player.play(url, title, headers, subtitleUrls,
+                  m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint, extraArgs,
+                  m_watchHistory.positionFor(entry));
 }
 
 void ApplicationController::removeContinueWatching(const QString &key)

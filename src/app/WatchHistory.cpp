@@ -14,6 +14,7 @@
 namespace {
 constexpr double kMinProgress = 0.03;
 constexpr double kMaxProgress = 0.92;
+constexpr double kResumeBackoffSeconds = 5.0;
 constexpr int kMaxContinueWatching = 20;
 }
 
@@ -53,6 +54,17 @@ QVariantList WatchHistory::inProgress() const
     return filtered;
 }
 
+QVariantMap WatchHistory::entry(const QString &key) const
+{
+    for (const QVariant &entry : m_entries) {
+        const QVariantMap map = entry.toMap();
+        if (map.value(QStringLiteral("key")).toString() == key && isInProgress(map)) {
+            return map;
+        }
+    }
+    return {};
+}
+
 double WatchHistory::positionFor(const QVariantMap &media) const
 {
     const QString key = keyForMedia(media);
@@ -63,7 +75,7 @@ double WatchHistory::positionFor(const QVariantMap &media) const
     for (const QVariant &entry : m_entries) {
         const QVariantMap map = entry.toMap();
         if (map.value(QStringLiteral("key")).toString() == key && isInProgress(map)) {
-            return map.value(QStringLiteral("position")).toDouble();
+            return std::max(0.0, map.value(QStringLiteral("position")).toDouble() - kResumeBackoffSeconds);
         }
     }
     return 0.0;

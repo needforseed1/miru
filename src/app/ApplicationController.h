@@ -64,6 +64,7 @@ public:
     Q_INVOKABLE void loadStreams(const QString &type, const QString &id);
     Q_INVOKABLE void clearStreams();
     Q_INVOKABLE void playStream(int index);
+    Q_INVOKABLE void resumeContinueWatching(const QString &key);
     Q_INVOKABLE void removeContinueWatching(const QString &key);
     Q_INVOKABLE void refreshImdbRatings();
     Q_INVOKABLE void setAioStreamsUrl(const QString &url);
