@@ -53,6 +53,7 @@ ApplicationWindow {
         if (query.trim().length === 0)
             return
         appController.search(query)
+        resultFilterField.clear()
         page = 0
     }
 
@@ -294,13 +295,46 @@ ApplicationWindow {
                     Layout.bottomMargin: Theme.s32
                     spacing: Theme.s32
 
-                    // search results (while searching)
-                    SectionRail {
+                    // search results (while searching), with a client-side
+                    // filter so users can narrow the matches by title.
+                    ColumnLayout {
+                        id: searchResultsBlock
                         visible: appController.searchResults.length > 0
-                        title: "Search Results"
-                        subtitle: appController.searchResults.length + " matches"
-                        model: appController.searchResults
-                        onOpenRequested: item => root.openDetails(item)
+                        Layout.fillWidth: true
+                        spacing: Theme.s12
+
+                        property string resultFilter: ""
+                        readonly property var filteredResults: {
+                            var all = appController.searchResults
+                            var q = resultFilter.trim().toLowerCase()
+                            if (q.length === 0)
+                                return all
+                            var out = []
+                            for (var i = 0; i < all.length; ++i) {
+                                var it = all[i]
+                                if ((it.name || "").toLowerCase().indexOf(q) !== -1)
+                                    out.push(it)
+                            }
+                            return out
+                        }
+
+                        SearchField {
+                            id: resultFilterField
+                            Layout.preferredWidth: 320
+                            placeholderText: "Filter results…"
+                            onTextChanged: searchResultsBlock.resultFilter = text
+                            onCleared: searchResultsBlock.resultFilter = ""
+                        }
+
+                        SectionRail {
+                            Layout.fillWidth: true
+                            title: "Search Results"
+                            subtitle: searchResultsBlock.filteredResults.length
+                                      + " of " + appController.searchResults.length
+                                      + " matches"
+                            model: searchResultsBlock.filteredResults
+                            onOpenRequested: item => root.openDetails(item)
+                        }
                     }
 
                     // category rails discovered from the metadata addon.

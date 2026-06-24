@@ -137,6 +137,9 @@ QVariantMap AIOStreamsClient::normalizeStream(const QJsonObject &stream) const
     item.insert(QStringLiteral("usenet"),
                 combined.contains(QStringLiteral("usenet"), Qt::CaseInsensitive)
                     || combined.contains(QStringLiteral("nzb"), Qt::CaseInsensitive));
+    // Releases served from the user's own LocalNZBs indexer.
+    item.insert(QStringLiteral("local"),
+                combined.contains(QStringLiteral("LocalNZB"), Qt::CaseInsensitive));
     item.insert(QStringLiteral("headers"), headers);
 
     // Colorful concise badges matched from the release name.

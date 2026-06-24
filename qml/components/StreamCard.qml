@@ -69,6 +69,22 @@ Rectangle {
                     outlineColor: Theme.success
                     textColor: Theme.success
                 }
+            }
+
+            // local source + season-pack markers on their own line,
+            // LOCAL first when present.
+            Flow {
+                Layout.fillWidth: true
+                spacing: Theme.s8
+                visible: !!root.stream.local || !!root.stream.seasonPack
+
+                BadgePill {
+                    visible: !!root.stream.local
+                    label: "LOCAL"
+                    bgColor: "transparent"
+                    outlineColor: Theme.accent
+                    textColor: Theme.accent
+                }
                 BadgePill {
                     visible: !!root.stream.seasonPack
                     label: "SEASON PACK"
