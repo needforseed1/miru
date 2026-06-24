@@ -631,529 +631,174 @@ ApplicationWindow {
                     Layout.leftMargin: Theme.s32
                 }
 
-                // AIOStreams card
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.maximumWidth: 760
-                    Layout.leftMargin: Theme.s32
-                    radius: Theme.rLg
-                    color: Theme.surface
-                    border.color: Theme.line
-                    implicitHeight: aioCol.implicitHeight + Theme.s40
+                SettingsCard {
+                    title: "AIOStreams addon"
+                    description: "Paste your AIOStreams addon base URL or its manifest.json URL. Stored locally. Remove and re-add after changing your AIOStreams backend, since reconfiguring it gives a new addon URL."
 
-                    ColumnLayout {
-                        id: aioCol
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.margins: Theme.s24
-                        spacing: Theme.s12
-
-                        Text {
-                            text: "AIOStreams addon"
-                            color: Theme.text
-                            font.pixelSize: Theme.fTitle
-                            font.bold: true
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            text: "Paste your AIOStreams addon base URL or its manifest.json URL. Stored locally. Remove and re-add after changing your AIOStreams backend, since reconfiguring it gives a new addon URL."
-                            color: Theme.textDim
-                            font.pixelSize: Theme.fSmall
-                            wrapMode: Text.WordWrap
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Layout.topMargin: Theme.s8
-                            spacing: Theme.s12
-
-                            TextField {
-                                id: aioUrlField
-                                Layout.fillWidth: true
-                                text: appController.aioStreamsUrl
-                                placeholderText: "https://your-aiostreams-addon.example/manifest.json"
-                                color: Theme.text
-                                placeholderTextColor: Theme.textMute
-                                font.pixelSize: Theme.fBody
-                                selectionColor: Theme.accent
-                                selectByMouse: true
-                                leftPadding: Theme.s16
-                                rightPadding: Theme.s16
-                                topPadding: Theme.s12
-                                bottomPadding: Theme.s12
-                                background: Rectangle {
-                                    radius: Theme.rMd
-                                    color: Theme.surfaceAlt
-                                    border.width: 1
-                                    border.color: aioUrlField.activeFocus ? Theme.accent : Theme.line
-                                    Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
-                                }
-                            }
-
-                            AppButton {
-                                text: appController.aioStreamsUrl.length > 0 ? "Update" : "Save"
-                                variant: "primary"
-                                onClicked: appController.setAioStreamsUrl(aioUrlField.text)
-                            }
-
-                            AppButton {
-                                text: "Remove"
-                                variant: "danger"
-                                enabled: appController.aioStreamsUrl.length > 0
-                                onClicked: {
-                                    appController.setAioStreamsUrl("")
-                                    aioUrlField.clear()
-                                }
-                            }
-                        }
-
-                        // connection status
-                        RowLayout {
-                            spacing: Theme.s8
-                            Rectangle {
-                                Layout.preferredWidth: 8; Layout.preferredHeight: 8; radius: 4
-                                Layout.alignment: Qt.AlignVCenter
-                                color: appController.aioStreamsUrl.length > 0 ? Theme.success : Theme.textMute
-                            }
-                            Text {
-                                text: appController.aioStreamsUrl.length > 0 ? "Addon configured" : "No addon configured"
-                                color: Theme.textDim
-                                font.pixelSize: Theme.fSmall
-                            }
-                        }
+                    AddonUrlField {
+                        value: appController.aioStreamsUrl
+                        placeholder: "https://your-aiostreams-addon.example/manifest.json"
+                        statusOn: "Addon configured"
+                        statusOff: "No addon configured"
+                        onSaveRequested: text => appController.setAioStreamsUrl(text)
+                        onRemoveRequested: appController.setAioStreamsUrl("")
                     }
                 }
 
-                // Metadata addon card
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.maximumWidth: 760
-                    Layout.leftMargin: Theme.s32
-                    radius: Theme.rLg
-                    color: Theme.surface
-                    border.color: Theme.line
-                    implicitHeight: metaCol.implicitHeight + Theme.s40
+                SettingsCard {
+                    title: "Metadata addon"
+                    description: "Source for detailed metadata: per-episode IMDb/TMDB ratings, episode stills and overviews. Defaults to Cinemeta, which lacks most episode ratings. Point this at a self-hosted AIOMetadata (Stremio addon URL or manifest.json) for full TMDB episode data. Catalogs and search still use Cinemeta."
 
-                    ColumnLayout {
-                        id: metaCol
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.margins: Theme.s24
-                        spacing: Theme.s12
-
-                        Text {
-                            text: "Metadata addon"
-                            color: Theme.text
-                            font.pixelSize: Theme.fTitle
-                            font.bold: true
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            text: "Source for detailed metadata: per-episode IMDb/TMDB ratings, episode stills and overviews. Defaults to Cinemeta, which lacks most episode ratings. Point this at a self-hosted AIOMetadata (Stremio addon URL or manifest.json) for full TMDB episode data. Catalogs and search still use Cinemeta."
-                            color: Theme.textDim
-                            font.pixelSize: Theme.fSmall
-                            wrapMode: Text.WordWrap
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Layout.topMargin: Theme.s8
-                            spacing: Theme.s12
-
-                            TextField {
-                                id: metaUrlField
-                                Layout.fillWidth: true
-                                text: appController.metadataUrl
-                                placeholderText: "https://your-aiometadata.example/manifest.json (blank = Cinemeta)"
-                                color: Theme.text
-                                placeholderTextColor: Theme.textMute
-                                font.pixelSize: Theme.fBody
-                                selectionColor: Theme.accent
-                                selectByMouse: true
-                                leftPadding: Theme.s16
-                                rightPadding: Theme.s16
-                                topPadding: Theme.s12
-                                bottomPadding: Theme.s12
-                                background: Rectangle {
-                                    radius: Theme.rMd
-                                    color: Theme.surfaceAlt
-                                    border.width: 1
-                                    border.color: metaUrlField.activeFocus ? Theme.accent : Theme.line
-                                    Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
-                                }
-                            }
-
-                            AppButton {
-                                text: appController.metadataUrl.length > 0 ? "Update" : "Save"
-                                variant: "primary"
-                                onClicked: appController.metadataUrl = metaUrlField.text
-                            }
-
-                            AppButton {
-                                text: "Remove"
-                                variant: "danger"
-                                enabled: appController.metadataUrl.length > 0
-                                onClicked: {
-                                    appController.metadataUrl = ""
-                                    metaUrlField.clear()
-                                }
-                            }
-                        }
-
-                        RowLayout {
-                            spacing: Theme.s8
-                            Rectangle {
-                                Layout.preferredWidth: 8; Layout.preferredHeight: 8; radius: 4
-                                Layout.alignment: Qt.AlignVCenter
-                                color: appController.metadataUrl.length > 0 ? Theme.success : Theme.textMute
-                            }
-                            Text {
-                                text: appController.metadataUrl.length > 0 ? "AIOMetadata configured" : "Using Cinemeta (default)"
-                                color: Theme.textDim
-                                font.pixelSize: Theme.fSmall
-                            }
-                        }
+                    AddonUrlField {
+                        value: appController.metadataUrl
+                        placeholder: "https://your-aiometadata.example/manifest.json (blank = Cinemeta)"
+                        statusOn: "AIOMetadata configured"
+                        statusOff: "Using Cinemeta (default)"
+                        onSaveRequested: text => appController.metadataUrl = text
+                        onRemoveRequested: appController.metadataUrl = ""
                     }
                 }
 
-                // Subtitles card
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.maximumWidth: 760
-                    Layout.leftMargin: Theme.s32
-                    radius: Theme.rLg
-                    color: Theme.surface
-                    border.color: Theme.line
-                    implicitHeight: subsCol.implicitHeight + Theme.s40
+                SettingsCard {
+                    title: "Subtitles"
+                    description: "Automatic subtitles via the OpenSubtitles addon. The preferred language is fetched for each title and loaded into mpv on playback."
 
-                    ColumnLayout {
-                        id: subsCol
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.margins: Theme.s24
-                        spacing: Theme.s12
-
-                        Text {
-                            text: "Subtitles"
-                            color: Theme.text
-                            font.pixelSize: Theme.fTitle
-                            font.bold: true
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            text: "Automatic subtitles via the OpenSubtitles addon. The preferred language is fetched for each title and loaded into mpv on playback."
-                            color: Theme.textDim
-                            font.pixelSize: Theme.fSmall
-                            wrapMode: Text.WordWrap
-                        }
-
-                        Flow {
-                            Layout.fillWidth: true
-                            Layout.topMargin: Theme.s8
-                            spacing: Theme.s8
-                            Repeater {
-                                model: [
-                                    { code: "off", label: "Off" },
-                                    { code: "eng", label: "English" },
-                                    { code: "spa", label: "Spanish" },
-                                    { code: "fre", label: "French" },
-                                    { code: "ger", label: "German" },
-                                    { code: "ita", label: "Italian" },
-                                    { code: "por", label: "Portuguese" },
-                                    { code: "pob", label: "Portuguese (BR)" },
-                                    { code: "dut", label: "Dutch" },
-                                    { code: "pol", label: "Polish" },
-                                    { code: "rus", label: "Russian" },
-                                    { code: "ara", label: "Arabic" }
-                                ]
-                                delegate: Rectangle {
-                                    id: langChip
-                                    required property var modelData
-                                    width: langLabel.implicitWidth + Theme.s24
-                                    height: 34
-                                    radius: Theme.rMd
-                                    readonly property bool current: modelData.code === appController.subtitleLanguage
-                                    color: current ? Theme.accentSoft : (langHover.hovered ? Theme.surfaceHover : Theme.surfaceAlt)
-                                    border.width: 1
-                                    border.color: current ? Theme.accent : Theme.line
-                                    Text {
-                                        id: langLabel
-                                        anchors.centerIn: parent
-                                        text: langChip.modelData.label
-                                        color: langChip.current ? Theme.text : Theme.textDim
-                                        font.pixelSize: Theme.fSmall
-                                        font.bold: langChip.current
-                                    }
-                                    HoverHandler { id: langHover; cursorShape: Qt.PointingHandCursor }
-                                    TapHandler { onTapped: appController.subtitleLanguage = langChip.modelData.code }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // IMDb ratings card
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.maximumWidth: 760
-                    Layout.leftMargin: Theme.s32
-                    radius: Theme.rLg
-                    color: Theme.surface
-                    border.color: Theme.line
-                    implicitHeight: imdbCol.implicitHeight + Theme.s40
-
-                    ColumnLayout {
-                        id: imdbCol
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.margins: Theme.s24
-                        spacing: Theme.s12
-
-                        Text {
-                            text: "IMDb ratings"
-                            color: Theme.text
-                            font.pixelSize: Theme.fTitle
-                            font.bold: true
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            text: "Real IMDb ratings for posters and episodes, built from IMDb's public dataset and cached locally. Refreshes automatically about once a week."
-                            color: Theme.textDim
-                            font.pixelSize: Theme.fSmall
-                            wrapMode: Text.WordWrap
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Layout.topMargin: Theme.s8
-                            spacing: Theme.s12
-
-                            RowLayout {
-                                spacing: Theme.s8
-                                Rectangle {
-                                    Layout.preferredWidth: 8; Layout.preferredHeight: 8; radius: 4
-                                    Layout.alignment: Qt.AlignVCenter
-                                    color: Theme.gold
-                                }
-                                Text {
-                                    text: appController.imdbRatingsUpdated
-                                    color: Theme.textDim
-                                    font.pixelSize: Theme.fSmall
-                                }
-                            }
-                            Item { Layout.fillWidth: true }
-                            AppButton {
-                                text: "Refresh now"
-                                onClicked: appController.refreshImdbRatings()
-                            }
-                        }
-
-                        CheckBox {
-                            id: posterRatingsToggle
-                            text: "Show IMDb scores on posters (keeps episode ratings)"
-                            checked: appController.showPosterRatings
-                            onToggled: appController.showPosterRatings = checked
-                            contentItem: Text {
-                                text: posterRatingsToggle.text
-                                color: Theme.textDim
-                                font.pixelSize: Theme.fSmall
-                                leftPadding: posterRatingsToggle.indicator.width + Theme.s8
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                        }
-                    }
-                }
-
-                // Display / zoom card
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.maximumWidth: 760
-                    Layout.leftMargin: Theme.s32
-                    radius: Theme.rLg
-                    color: Theme.surface
-                    border.color: Theme.line
-                    implicitHeight: zoomCol.implicitHeight + Theme.s40
-
-                    ColumnLayout {
-                        id: zoomCol
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.margins: Theme.s24
-                        spacing: Theme.s12
-
-                        Text {
-                            text: "Display"
-                            color: Theme.text
-                            font.pixelSize: Theme.fTitle
-                            font.bold: true
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            text: "Interface zoom, applied on top of your desktop's scaling. Takes effect after restarting the app."
-                            color: Theme.textDim
-                            font.pixelSize: Theme.fSmall
-                            wrapMode: Text.WordWrap
-                        }
-
-                        Flow {
-                            Layout.fillWidth: true
-                            Layout.topMargin: Theme.s8
-                            spacing: Theme.s8
-                            Repeater {
-                                model: [
-                                    { scale: 0.9, label: "90%" },
-                                    { scale: 1.0, label: "100%" },
-                                    { scale: 1.1, label: "110%" },
-                                    { scale: 1.25, label: "125%" },
-                                    { scale: 1.5, label: "150%" }
-                                ]
-                                delegate: Rectangle {
-                                    id: zoomChip
-                                    required property var modelData
-                                    width: zoomLabel.implicitWidth + Theme.s24
-                                    height: 34
-                                    radius: Theme.rMd
-                                    readonly property bool current: Math.abs(modelData.scale - appController.uiScale) < 0.001
-                                    color: current ? Theme.accentSoft : (zoomHover.hovered ? Theme.surfaceHover : Theme.surfaceAlt)
-                                    border.width: 1
-                                    border.color: current ? Theme.accent : Theme.line
-                                    Text {
-                                        id: zoomLabel
-                                        anchors.centerIn: parent
-                                        text: zoomChip.modelData.label
-                                        color: zoomChip.current ? Theme.text : Theme.textDim
-                                        font.pixelSize: Theme.fSmall
-                                        font.bold: zoomChip.current
-                                    }
-                                    HoverHandler { id: zoomHover; cursorShape: Qt.PointingHandCursor }
-                                    TapHandler { onTapped: appController.uiScale = zoomChip.modelData.scale }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // playback note
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.maximumWidth: 760
-                    Layout.leftMargin: Theme.s32
-                    radius: Theme.rLg
-                    color: Theme.surface
-                    border.color: Theme.line
-                    implicitHeight: playbackCol.implicitHeight + Theme.s40
-
-                    ColumnLayout {
-                        id: playbackCol
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.margins: Theme.s24
+                    Flow {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Theme.s8
                         spacing: Theme.s8
-
-                        Text {
-                            text: "Playback"
-                            color: Theme.text
-                            font.pixelSize: Theme.fTitle
-                            font.bold: true
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            text: "External mpv is used for playback. The app always passes stream URL, auth headers, subtitles and safe network options; rendering/HDR choices are configurable below. Custom args are appended last so they can override the defaults."
-                            color: Theme.textDim
-                            font.pixelSize: Theme.fSmall
-                            wrapMode: Text.WordWrap
-                        }
-
-                        CheckBox {
-                            id: hwdecToggle
-                            text: "Hardware decoding (--hwdec=auto-safe)"
-                            checked: appController.mpvHardwareDecoding
-                            onToggled: appController.mpvHardwareDecoding = checked
-                            contentItem: Text {
-                                text: hwdecToggle.text
-                                color: Theme.textDim
-                                font.pixelSize: Theme.fSmall
-                                leftPadding: hwdecToggle.indicator.width + Theme.s8
-                                verticalAlignment: Text.AlignVCenter
+                        Repeater {
+                            model: [
+                                { code: "off", label: "Off" },
+                                { code: "eng", label: "English" },
+                                { code: "spa", label: "Spanish" },
+                                { code: "fre", label: "French" },
+                                { code: "ger", label: "German" },
+                                { code: "ita", label: "Italian" },
+                                { code: "por", label: "Portuguese" },
+                                { code: "pob", label: "Portuguese (BR)" },
+                                { code: "dut", label: "Dutch" },
+                                { code: "pol", label: "Polish" },
+                                { code: "rus", label: "Russian" },
+                                { code: "ara", label: "Arabic" }
+                            ]
+                            delegate: ChoiceChip {
+                                required property var modelData
+                                label: modelData.label
+                                current: modelData.code === appController.subtitleLanguage
+                                onClicked: appController.subtitleLanguage = modelData.code
                             }
                         }
+                    }
+                }
 
-                        CheckBox {
-                            id: gpuNextToggle
-                            text: "Use gpu-next renderer (--vo=gpu-next)"
-                            checked: appController.mpvGpuNext
-                            onToggled: appController.mpvGpuNext = checked
-                            contentItem: Text {
-                                text: gpuNextToggle.text
-                                color: Theme.textDim
-                                font.pixelSize: Theme.fSmall
-                                leftPadding: gpuNextToggle.indicator.width + Theme.s8
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                        }
+                SettingsCard {
+                    title: "IMDb ratings"
+                    description: "Real IMDb ratings for posters and episodes, built from IMDb's public dataset and cached locally. Refreshes automatically about once a week."
 
-                        CheckBox {
-                            id: hdrToggle
-                            text: "HDR/Vulkan hint (--gpu-api=vulkan --target-colorspace-hint=yes)"
-                            checked: appController.mpvHdrHint
-                            onToggled: appController.mpvHdrHint = checked
-                            contentItem: Text {
-                                text: hdrToggle.text
-                                color: Theme.textDim
-                                font.pixelSize: Theme.fSmall
-                                leftPadding: hdrToggle.indicator.width + Theme.s8
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                        }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Theme.s8
+                        spacing: Theme.s12
 
                         RowLayout {
+                            spacing: Theme.s8
+                            Rectangle {
+                                Layout.preferredWidth: 8; Layout.preferredHeight: 8; radius: 4
+                                Layout.alignment: Qt.AlignVCenter
+                                color: Theme.gold
+                            }
+                            Text {
+                                text: appController.imdbRatingsUpdated
+                                color: Theme.textDim
+                                font.pixelSize: Theme.fSmall
+                            }
+                        }
+                        Item { Layout.fillWidth: true }
+                        AppButton {
+                            text: "Refresh now"
+                            onClicked: appController.refreshImdbRatings()
+                        }
+                    }
+
+                    SettingsCheck {
+                        text: "Show IMDb scores on posters (keeps episode ratings)"
+                        checked: appController.showPosterRatings
+                        onToggled: appController.showPosterRatings = checked
+                    }
+                }
+
+                SettingsCard {
+                    title: "Display"
+                    description: "Interface zoom, applied on top of your desktop's scaling. Takes effect after restarting the app."
+
+                    Flow {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Theme.s8
+                        spacing: Theme.s8
+                        Repeater {
+                            model: [
+                                { scale: 0.9, label: "90%" },
+                                { scale: 1.0, label: "100%" },
+                                { scale: 1.1, label: "110%" },
+                                { scale: 1.25, label: "125%" },
+                                { scale: 1.5, label: "150%" }
+                            ]
+                            delegate: ChoiceChip {
+                                required property var modelData
+                                label: modelData.label
+                                current: Math.abs(modelData.scale - appController.uiScale) < 0.001
+                                onClicked: appController.uiScale = modelData.scale
+                            }
+                        }
+                    }
+                }
+
+                SettingsCard {
+                    title: "Playback"
+                    description: "External mpv is used for playback. The app always passes stream URL, auth headers, subtitles and safe network options; rendering/HDR choices are configurable below. Custom args are appended last so they can override the defaults."
+
+                    SettingsCheck {
+                        text: "Hardware decoding (--hwdec=auto-safe)"
+                        checked: appController.mpvHardwareDecoding
+                        onToggled: appController.mpvHardwareDecoding = checked
+                    }
+                    SettingsCheck {
+                        text: "Use gpu-next renderer (--vo=gpu-next)"
+                        checked: appController.mpvGpuNext
+                        onToggled: appController.mpvGpuNext = checked
+                    }
+                    SettingsCheck {
+                        text: "HDR/Vulkan hint (--gpu-api=vulkan --target-colorspace-hint=yes)"
+                        checked: appController.mpvHdrHint
+                        onToggled: appController.mpvHdrHint = checked
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Theme.s8
+                        spacing: Theme.s12
+
+                        SettingsField {
+                            id: mpvArgsField
                             Layout.fillWidth: true
-                            Layout.topMargin: Theme.s8
-                            spacing: Theme.s12
+                            text: appController.mpvExtraArgs
+                            placeholderText: "Custom mpv args, e.g. --profile=high-quality --deband=yes"
+                            onAccepted: appController.mpvExtraArgs = text
+                        }
 
-                            TextField {
-                                id: mpvArgsField
-                                Layout.fillWidth: true
-                                text: appController.mpvExtraArgs
-                                placeholderText: "Custom mpv args, e.g. --profile=high-quality --deband=yes"
-                                color: Theme.text
-                                placeholderTextColor: Theme.textMute
-                                font.pixelSize: Theme.fBody
-                                selectionColor: Theme.accent
-                                selectByMouse: true
-                                leftPadding: Theme.s16
-                                rightPadding: Theme.s16
-                                topPadding: Theme.s12
-                                bottomPadding: Theme.s12
-                                onAccepted: appController.mpvExtraArgs = text
-                                background: Rectangle {
-                                    radius: Theme.rMd
-                                    color: Theme.surfaceAlt
-                                    border.width: 1
-                                    border.color: mpvArgsField.activeFocus ? Theme.accent : Theme.line
-                                    Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
-                                }
-                            }
+                        AppButton {
+                            text: "Save"
+                            variant: "primary"
+                            onClicked: appController.mpvExtraArgs = mpvArgsField.text
+                        }
 
-                            AppButton {
-                                text: "Save"
-                                variant: "primary"
-                                onClicked: appController.mpvExtraArgs = mpvArgsField.text
-                            }
-
-                            AppButton {
-                                text: "Clear"
-                                enabled: appController.mpvExtraArgs.length > 0
-                                onClicked: {
-                                    appController.mpvExtraArgs = ""
-                                    mpvArgsField.clear()
-                                }
+                        AppButton {
+                            text: "Clear"
+                            enabled: appController.mpvExtraArgs.length > 0
+                            onClicked: {
+                                appController.mpvExtraArgs = ""
+                                mpvArgsField.clear()
                             }
                         }
                     }

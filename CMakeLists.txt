@@ -51,6 +51,11 @@ qt_add_qml_module(stremio-linux
         qml/components/StreamCard.qml
         qml/components/SectionRail.qml
         qml/components/EpisodeList.qml
+        qml/components/SettingsCard.qml
+        qml/components/SettingsField.qml
+        qml/components/SettingsCheck.qml
+        qml/components/ChoiceChip.qml
+        qml/components/AddonUrlField.qml
 )
 
 target_link_libraries(stremio-linux
