@@ -299,6 +299,14 @@ void ApplicationController::loadStreams(const QString &type, const QString &id)
     setLoading(true);
     setStreamsLoading(true);
     setStatusMessage(QStringLiteral("Loading streams"));
+
+    // Drop the previous episode's releases immediately so the search
+    // animation shows again instead of stale results lingering.
+    if (!m_streams.isEmpty()) {
+        m_streams.clear();
+        emit streamsChanged();
+    }
+
     m_aioStreams.fetchStreams(type, id);
 
     // Prefetch subtitles for this title/episode so they are ready by the

@@ -39,9 +39,23 @@ Rectangle {
                 elide: Text.ElideRight
             }
 
-            // colorful concise badges (resolution, quality, audio, ...) + meta
+            // the addon's own formatted description, preserved verbatim
+            Text {
+                Layout.fillWidth: true
+                visible: text.length > 0
+                text: root.stream.description || ""
+                textFormat: Text.PlainText
+                color: Theme.textDim
+                font.family: Theme.monoFont
+                font.pixelSize: Theme.fSmall
+                lineHeight: 1.2
+                wrapMode: Text.Wrap
+            }
+
+            // badges pinned to the bottom of the card
             Flow {
                 Layout.fillWidth: true
+                Layout.topMargin: Theme.s4
                 spacing: Theme.s8
 
                 Repeater {
@@ -62,28 +76,14 @@ Rectangle {
                     outlineColor: Theme.lineStrong
                     textColor: Theme.textDim
                 }
-                BadgePill {
-                    visible: !!root.stream.usenet
-                    label: "USENET"
-                    bgColor: "transparent"
-                    outlineColor: Theme.success
-                    textColor: Theme.success
-                }
-            }
 
-            // local source + season-pack markers on their own line,
-            // LOCAL first when present.
-            Flow {
-                Layout.fillWidth: true
-                spacing: Theme.s8
-                visible: !!root.stream.local || !!root.stream.seasonPack
-
+                // LOCAL first, then SEASON PACK
                 BadgePill {
                     visible: !!root.stream.local
                     label: "LOCAL"
-                    bgColor: "transparent"
-                    outlineColor: Theme.accent
-                    textColor: Theme.accent
+                    bgColor: Theme.success
+                    outlineColor: Theme.success
+                    textColor: Theme.bg
                 }
                 BadgePill {
                     visible: !!root.stream.seasonPack
@@ -92,19 +92,6 @@ Rectangle {
                     outlineColor: Theme.gold
                     textColor: Theme.gold
                 }
-            }
-
-            // the addon's own formatted description, preserved verbatim
-            Text {
-                Layout.fillWidth: true
-                visible: text.length > 0
-                text: root.stream.description || ""
-                textFormat: Text.PlainText
-                color: Theme.textDim
-                font.family: Theme.monoFont
-                font.pixelSize: Theme.fSmall
-                lineHeight: 1.2
-                wrapMode: Text.Wrap
             }
         }
 
