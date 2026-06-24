@@ -20,7 +20,6 @@ ApplicationWindow {
     property string selectedEpisodeId: ""
 
     readonly property bool isSeries: detailsItem && detailsItem.type === "series"
-    readonly property var featured: (appController.featured && appController.featured.name) ? appController.featured : null
 
     // "S1 · E1" label for the selected episode, derived from "ttID:season:episode"
     readonly property string episodeLabel: {
@@ -34,13 +33,18 @@ ApplicationWindow {
 
     function openDetails(item) {
         detailsItem = item
-        baseId = item.id
-        selectedEpisodeId = ""
+        baseId = item.type === "series" && item.baseId ? item.baseId : item.id
+        const resumeEpisodeId = item.type === "series" && item.baseId && item.season > 0 && item.episode > 0
+                              ? baseId + ":" + item.season + ":" + item.episode
+                              : ""
+        selectedEpisodeId = resumeEpisodeId
         appController.clearStreams()   // drop any stale releases from the last view
         page = 1
-        appController.loadMeta(item.type, item.id)
+        appController.loadMeta(item.type, baseId)
         if (item.type !== "series")
-            appController.loadStreams(item.type, item.id)
+            appController.loadStreams(item.type, baseId)
+        else if (resumeEpisodeId !== "")
+            appController.loadStreams("series", resumeEpisodeId)
     }
 
     function playEpisode(video) {
@@ -209,80 +213,48 @@ ApplicationWindow {
                 width: parent.width
                 spacing: Theme.s32
 
-                // hero
-                Item {
+                // continue watching
+                ColumnLayout {
+                    id: continueWatchingRail
+                    visible: appController.searchResults.length === 0 && appController.continueWatching.length > 0
                     Layout.fillWidth: true
                     Layout.topMargin: Theme.s24
                     Layout.leftMargin: Theme.s32
                     Layout.rightMargin: Theme.s32
-                    implicitHeight: 320
+                    spacing: Theme.s12
 
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: Theme.rXl
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.s12
+                        Rectangle { Layout.preferredWidth: 4; Layout.preferredHeight: 22; radius: 2; color: Theme.accent }
+                        Text {
+                            text: "Continue Watching"
+                            color: Theme.text
+                            font.pixelSize: Theme.fH3
+                            font.bold: true
+                        }
+                        Text {
+                            text: appController.continueWatching.length + " in progress"
+                            color: Theme.textMute
+                            font.pixelSize: Theme.fSmall
+                            Layout.alignment: Qt.AlignBottom
+                            bottomPadding: 4
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+
+                    ListView {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 326
+                        orientation: ListView.Horizontal
+                        spacing: Theme.s16
                         clip: true
-                        color: Theme.surface
-
-                        Image {
-                            anchors.fill: parent
-                            source: root.featured ? (root.featured.background || root.featured.poster || "") : ""
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            opacity: 0.55
-                        }
-                        Rectangle {
-                            anchors.fill: parent
-                            gradient: Gradient {
-                                orientation: Gradient.Horizontal
-                                GradientStop { position: 0.0; color: "#ee0c0e16" }
-                                GradientStop { position: 0.6; color: "#660c0e16" }
-                                GradientStop { position: 1.0; color: "transparent" }
-                            }
-                        }
-
-                        ColumnLayout {
-                            anchors.left: parent.left
-                            anchors.bottom: parent.bottom
-                            anchors.top: parent.top
-                            anchors.margins: Theme.s40
-                            width: Math.min(640, parent.width * 0.6)
-                            spacing: Theme.s12
-
-                            Item { Layout.fillHeight: true }
-
-                            Pill {
-                                text: root.featured ? "FEATURED" : "WELCOME"
-                                accentColor: Theme.accent
-                            }
-                            Text {
-                                Layout.fillWidth: true
-                                text: root.featured ? root.featured.name : "Cinematic Linux streaming"
-                                color: Theme.text
-                                font.pixelSize: Theme.fH1
-                                font.bold: true
-                                wrapMode: Text.WordWrap
-                                maximumLineCount: 2
-                                elide: Text.ElideRight
-                            }
-                            Text {
-                                Layout.fillWidth: true
-                                text: root.featured && root.featured.description
-                                      ? root.featured.description
-                                      : "Browse Cinemeta catalogs, resolve AIOStreams HTTP sources, and play with mpv."
-                                color: Theme.textDim
-                                font.pixelSize: Theme.fBody
-                                wrapMode: Text.WordWrap
-                                maximumLineCount: 3
-                                elide: Text.ElideRight
-                            }
-                            AppButton {
-                                visible: !!root.featured
-                                text: "View details  ›"
-                                variant: "primary"
-                                Layout.topMargin: Theme.s8
-                                onClicked: root.openDetails(root.featured)
-                            }
-                            Item { Layout.fillHeight: true }
+                        boundsBehavior: Flickable.StopAtBounds
+                        model: appController.continueWatching
+                        delegate: ResumeCard {
+                            item: modelData
+                            onClicked: clickedItem => root.openDetails(clickedItem)
+                            onRemoveRequested: key => appController.removeContinueWatching(key)
                         }
                     }
                 }

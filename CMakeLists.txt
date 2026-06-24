@@ -14,6 +14,8 @@ qt_add_executable(stremio-linux
     src/main.cpp
     src/app/ApplicationController.cpp
     src/app/ApplicationController.h
+    src/app/WatchHistory.cpp
+    src/app/WatchHistory.h
     src/services/CinemetaClient.cpp
     src/services/CinemetaClient.h
     src/services/AIOStreamsClient.cpp
@@ -48,6 +50,7 @@ qt_add_qml_module(stremio-linux
         qml/components/SearchField.qml
         qml/components/SearchSpinner.qml
         qml/components/PosterCard.qml
+        qml/components/ResumeCard.qml
         qml/components/StreamCard.qml
         qml/components/SectionRail.qml
         qml/components/EpisodeList.qml

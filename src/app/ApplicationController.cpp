@@ -5,6 +5,13 @@
 #include <QSettings>
 #include <QVariant>
 
+namespace {
+QString stringValue(const QVariantMap &map, const QString &key)
+{
+    return map.value(key).toString();
+}
+}
+
 ApplicationController::ApplicationController(QObject *parent)
     : QObject(parent)
 {
@@ -110,6 +117,20 @@ ApplicationController::ApplicationController(QObject *parent)
         setStatusMessage(QStringLiteral("Playback started in mpv"));
     });
 
+    connect(&m_player, &ExternalMpvPlayer::positionChanged, this, [this](double position, double duration) {
+        if (!m_currentPlaybackMedia.isEmpty()) {
+            m_watchHistory.record(m_currentPlaybackMedia, position, duration);
+        }
+    });
+
+    connect(&m_player, &ExternalMpvPlayer::playbackFinished, this, [this](double position, double duration) {
+        if (!m_currentPlaybackMedia.isEmpty()) {
+            m_watchHistory.record(m_currentPlaybackMedia, position, duration);
+        }
+    });
+
+    connect(&m_watchHistory, &WatchHistory::changed, this, &ApplicationController::continueWatchingChanged);
+
     connect(&m_imdbRatings, &ImdbRatings::statusChanged, this, [this](const QString &message) {
         setStatusMessage(message);
     });
@@ -161,6 +182,55 @@ QVariantList ApplicationController::withTitleRatings(const QVariantList &items) 
         out.append(item);
     }
     return out;
+}
+
+QVariantMap ApplicationController::mediaForStreamRequest(const QString &type, const QString &id) const
+{
+    QVariantMap media;
+    media.insert(QStringLiteral("type"), type);
+    media.insert(QStringLiteral("id"), id);
+
+    if (type == QStringLiteral("series")) {
+        const QStringList parts = id.split(QLatin1Char(':'));
+        const QString baseId = parts.value(0);
+        const int season = parts.value(1).toInt();
+        const int episode = parts.value(2).toInt();
+        media.insert(QStringLiteral("baseId"), baseId);
+        media.insert(QStringLiteral("season"), season);
+        media.insert(QStringLiteral("episode"), episode);
+        if (m_selectedMeta.value(QStringLiteral("id")).toString() == baseId) {
+            media.insert(QStringLiteral("name"), m_selectedMeta.value(QStringLiteral("name")).toString());
+            media.insert(QStringLiteral("poster"), m_selectedMeta.value(QStringLiteral("poster")).toString());
+        }
+    } else {
+        media.insert(QStringLiteral("baseId"), id);
+        if (m_selectedMeta.value(QStringLiteral("id")).toString() == id) {
+            media.insert(QStringLiteral("name"), m_selectedMeta.value(QStringLiteral("name")).toString());
+            media.insert(QStringLiteral("poster"), m_selectedMeta.value(QStringLiteral("poster")).toString());
+        }
+    }
+
+    return media;
+}
+
+QVariantMap ApplicationController::currentPlaybackMedia(const QVariantMap &stream) const
+{
+    QVariantMap media = m_streamMedia;
+    if (media.isEmpty()) {
+        return media;
+    }
+
+    if (stringValue(media, QStringLiteral("name")).isEmpty()) {
+        const QString metaName = m_selectedMeta.value(QStringLiteral("name")).toString();
+        media.insert(QStringLiteral("name"), metaName.isEmpty()
+                         ? stream.value(QStringLiteral("title")).toString()
+                         : metaName);
+    }
+    if (stringValue(media, QStringLiteral("poster")).isEmpty()) {
+        media.insert(QStringLiteral("poster"), m_selectedMeta.value(QStringLiteral("poster")).toString());
+    }
+
+    return media;
 }
 
 void ApplicationController::enrichEpisodeRatings()
@@ -221,6 +291,7 @@ QVariantMap ApplicationController::featured() const
 }
 
 QVariantList ApplicationController::searchResults() const { return m_searchResults; }
+QVariantList ApplicationController::continueWatching() const { return m_watchHistory.inProgress(); }
 QVariantMap ApplicationController::selectedMeta() const { return m_selectedMeta; }
 QVariantList ApplicationController::streams() const { return m_streams; }
 bool ApplicationController::streamsLoading() const { return m_streamsLoading; }
@@ -290,6 +361,7 @@ void ApplicationController::loadMeta(const QString &type, const QString &id)
 
 void ApplicationController::loadStreams(const QString &type, const QString &id)
 {
+    m_streamMedia.clear();
     if (m_aioStreamsUrl.trimmed().isEmpty()) {
         m_streams.clear();
         emit streamsChanged();
@@ -301,6 +373,7 @@ void ApplicationController::loadStreams(const QString &type, const QString &id)
     setLoading(true);
     setStreamsLoading(true);
     setStatusMessage(QStringLiteral("Loading streams"));
+    m_streamMedia = mediaForStreamRequest(type, id);
 
     // Drop the previous episode's releases immediately so the search
     // animation shows again instead of stale results lingering.
@@ -322,6 +395,7 @@ void ApplicationController::loadStreams(const QString &type, const QString &id)
 void ApplicationController::clearStreams()
 {
     m_currentSubtitles.clear();
+    m_streamMedia.clear();
     setStreamsLoading(false);
     if (m_streams.isEmpty()) {
         return;
@@ -340,6 +414,8 @@ void ApplicationController::playStream(int index)
     const QString url = stream.value(QStringLiteral("url")).toString();
     const QString title = stream.value(QStringLiteral("title")).toString();
     const QVariantMap headers = stream.value(QStringLiteral("headers")).toMap();
+    m_currentPlaybackMedia = currentPlaybackMedia(stream);
+    const double startSeconds = m_watchHistory.positionFor(m_currentPlaybackMedia);
 
     // Pick subtitles in the preferred language (a couple, mpv selects the
     // first). Keep the count small so it does not delay playback start.
@@ -358,7 +434,12 @@ void ApplicationController::playStream(int index)
 
     const QStringList extraArgs = QProcess::splitCommand(m_mpvExtraArgs);
     m_player.play(url, title, headers, subtitleUrls,
-                  m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint, extraArgs);
+                  m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint, extraArgs, startSeconds);
+}
+
+void ApplicationController::removeContinueWatching(const QString &key)
+{
+    m_watchHistory.remove(key);
 }
 
 void ApplicationController::setAioStreamsUrl(const QString &url)

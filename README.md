@@ -22,11 +22,11 @@ Working now:
 - Filters out torrent-style streams
 - Automatic subtitles via the OpenSubtitles addon (configurable language)
 - Launches direct `http`/`https` streams in external `mpv` with auth headers
+- Resume tracking through `mpv` IPC
+- JSON watch history with Continue Watching
 
 Planned next:
 
-- Resume tracking through `mpv` IPC
-- SQLite watch history and Continue Watching
 - Stream sorting
 - More player profiles for HDR, HDR-to-SDR tonemapping, and low-power mode
 - Embedded `libmpv` later, while keeping external `mpv` available
@@ -155,6 +155,8 @@ Rendering choices are configurable in Settings:
 - Custom mpv args are appended last so users can override app defaults.
 
 Only streams with direct `http` or `https` URLs are passed to `mpv`.
+
+Playback progress is captured over `mpv` IPC and stored locally in a small JSON watch-history file. Continue Watching resumes by title/episode, not by stream URL, so a newer debrid/Usenet link can resume from the same point.
 
 Torrent streams are intentionally ignored:
 

@@ -9,12 +9,14 @@
 #include "../services/CinemetaClient.h"
 #include "../services/ImdbRatings.h"
 #include "../services/SubtitlesClient.h"
+#include "WatchHistory.h"
 
 class ApplicationController : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QVariantList homeSections READ homeSections NOTIFY homeSectionsChanged)
     Q_PROPERTY(QVariantMap featured READ featured NOTIFY homeSectionsChanged)
+    Q_PROPERTY(QVariantList continueWatching READ continueWatching NOTIFY continueWatchingChanged)
     Q_PROPERTY(QVariantList searchResults READ searchResults NOTIFY searchResultsChanged)
     Q_PROPERTY(QVariantMap selectedMeta READ selectedMeta NOTIFY selectedMetaChanged)
     Q_PROPERTY(QVariantList streams READ streams NOTIFY streamsChanged)
@@ -37,6 +39,7 @@ public:
 
     QVariantList homeSections() const;
     QVariantMap featured() const;
+    QVariantList continueWatching() const;
     QVariantList searchResults() const;
     QVariantMap selectedMeta() const;
     QVariantList streams() const;
@@ -61,6 +64,7 @@ public:
     Q_INVOKABLE void loadStreams(const QString &type, const QString &id);
     Q_INVOKABLE void clearStreams();
     Q_INVOKABLE void playStream(int index);
+    Q_INVOKABLE void removeContinueWatching(const QString &key);
     Q_INVOKABLE void refreshImdbRatings();
     Q_INVOKABLE void setAioStreamsUrl(const QString &url);
     void setMetadataUrl(const QString &url);
@@ -74,6 +78,7 @@ public:
 
 signals:
     void homeSectionsChanged();
+    void continueWatchingChanged();
     void searchResultsChanged();
     void selectedMetaChanged();
     void streamsChanged();
@@ -97,11 +102,14 @@ private:
     void setStatusMessage(const QString &message);
     void enrichEpisodeRatings();
     QVariantList withTitleRatings(const QVariantList &items) const;
+    QVariantMap mediaForStreamRequest(const QString &type, const QString &id) const;
+    QVariantMap currentPlaybackMedia(const QVariantMap &stream) const;
 
     CinemetaClient m_cinemeta;
     AIOStreamsClient m_aioStreams;
     SubtitlesClient m_subtitles;
     ImdbRatings m_imdbRatings;
+    WatchHistory m_watchHistory;
     ExternalMpvPlayer m_player;
 
     QVariantList m_homeSections; // [{ id, type, title, items }]
@@ -109,6 +117,8 @@ private:
     QVariantMap m_selectedMeta;
     QVariantList m_streams;
     QVariantList m_currentSubtitles;
+    QVariantMap m_streamMedia;
+    QVariantMap m_currentPlaybackMedia;
     QString m_aioStreamsUrl;
     QString m_metadataUrl;
     QString m_subtitleLanguage;
