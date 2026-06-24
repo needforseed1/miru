@@ -24,6 +24,7 @@ signals:
     void errorOccurred(const QString &message);
 
 private:
+    void requestStreams(const QString &type, const QString &id, int attempt);
     QString normalizedBaseUrl() const;
     QVariantMap normalizeStream(const QJsonObject &stream) const;
     bool isPlayableStream(const QJsonObject &stream) const;

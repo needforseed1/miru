@@ -15,32 +15,57 @@ AIOStreamsClient::AIOStreamsClient(QObject *parent)
 {
     m_badges.load(QStringLiteral(":/resources/Sterzeck_badge.json"));
     // Give up on a stalled stream request so the UI doesn't spin forever.
-    m_network.setTransferTimeout(std::chrono::seconds{15});
+    // The first request after launch is cold (DNS, TLS, and the addon's first
+    // indexer/debrid search), so keep this generous enough not to abort a
+    // legitimately slow first response; requestStreams() also retries once.
+    m_network.setTransferTimeout(std::chrono::seconds{30});
 }
 
 void AIOStreamsClient::setBaseUrl(const QString &url)
 {
     m_baseUrl = url.trimmed();
+
+    // Pre-warm the connection (DNS + TLS handshake) so the first real stream
+    // request doesn't pay the full cold-start latency and trip the timeout.
+    const QUrl base(normalizedBaseUrl());
+    if (!base.host().isEmpty()) {
+        if (base.scheme() == QStringLiteral("http")) {
+            m_network.connectToHost(base.host(), base.port(80));
+        } else {
+            m_network.connectToHostEncrypted(base.host(), base.port(443));
+        }
+    }
 }
 
 void AIOStreamsClient::fetchStreams(const QString &type, const QString &id)
 {
-    const QString base = normalizedBaseUrl();
-    if (base.isEmpty()) {
+    if (normalizedBaseUrl().isEmpty()) {
         emit errorOccurred(QStringLiteral("AIOStreams addon URL is not configured"));
         return;
     }
+    requestStreams(type, id, 0);
+}
 
+void AIOStreamsClient::requestStreams(const QString &type, const QString &id, int attempt)
+{
+    const QString base = normalizedBaseUrl();
     const QString encodedId = QString::fromUtf8(QUrl::toPercentEncoding(id, ":"));
     const QUrl url(QStringLiteral("%1/stream/%2/%3.json").arg(base, type, encodedId));
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("AIOStreamsLinux/0.1"));
 
     QNetworkReply *reply = m_network.get(request);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, type]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, type, id, attempt]() {
         reply->deleteLater();
 
         if (reply->error() != QNetworkReply::NoError) {
+            // A cold first request can fail (timeout / dropped connection); a
+            // warm retry almost always succeeds, so try once more before
+            // surfacing the error.
+            if (attempt == 0) {
+                requestStreams(type, id, 1);
+                return;
+            }
             emit errorOccurred(QStringLiteral("AIOStreams error: %1").arg(reply->errorString()));
             return;
         }
