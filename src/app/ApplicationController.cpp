@@ -55,20 +55,32 @@ int searchRank(const QVariantMap &item, const QString &query)
     if (q.isEmpty() || name.isEmpty()) {
         return 100;
     }
-    if (name == q || noArticle == q) {
+    // Exact title.
+    if (name == q) {
         return 0;
     }
-    if (name.startsWith(q + QLatin1Char(' ')) || noArticle.startsWith(q + QLatin1Char(' '))) {
+    // Exact once a leading article is dropped ("The Dune" for "dune"). Ranked
+    // just below a true exact so the real title wins when both are present.
+    if (noArticle == q) {
+        return 5;
+    }
+    // Title begins with the query, including token-prefix matches like
+    // "Aliens"/"Matrix Reloaded" for "alien"/"matrix".
+    if (name.startsWith(q) || noArticle.startsWith(q)) {
         return 10;
     }
-    const QString paddedName = QStringLiteral(" %1 ").arg(name);
-    const QString paddedQuery = QStringLiteral(" %1 ").arg(q);
-    if (paddedName.contains(paddedQuery)) {
-        return 20;
+    // The query is a prefix of some later word in the title.
+    const QStringList tokens = name.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+    for (const QString &token : tokens) {
+        if (token.startsWith(q)) {
+            return 25;
+        }
     }
+    // The query appears as a raw substring (inside a word).
     if (name.contains(q)) {
-        return 40;
+        return 45;
     }
+    // No textual match; the metadata addon matched this fuzzily.
     return 100;
 }
 
@@ -145,43 +157,27 @@ double mainstreamScore(const QVariantMap &item)
     return score;
 }
 
-double relevanceScore(int rank)
-{
-    if (rank == 0) {
-        return 500.0;
-    }
-    if (rank == 10) {
-        return 430.0;
-    }
-    if (rank == 20) {
-        return 280.0;
-    }
-    if (rank == 40) {
-        return 150.0;
-    }
-    return 0.0;
-}
-
-double searchScore(const QVariantMap &item, const QString &query)
-{
-    return relevanceScore(searchRank(item, query)) + mainstreamScore(item);
-}
-
 void sortSearchResults(QVariantList &items, const QString &query)
 {
+    // Relevance is a strict primary key: a better textual match always sorts
+    // above a worse one, regardless of popularity. Within a tier, the
+    // query-independent mainstream score (and then rating, then title length)
+    // decides order. This keeps popular-but-unrelated fuzzy matches from
+    // floating above genuine matches.
     std::stable_sort(items.begin(), items.end(), [&query](const QVariant &left, const QVariant &right) {
         const QVariantMap a = left.toMap();
         const QVariantMap b = right.toMap();
+
         const int rankA = searchRank(a, query);
         const int rankB = searchRank(b, query);
-        const double scoreA = searchScore(a, query);
-        const double scoreB = searchScore(b, query);
-        if (!qFuzzyCompare(scoreA + 1.0, scoreB + 1.0)) {
-            return scoreA > scoreB;
-        }
-
         if (rankA != rankB) {
             return rankA < rankB;
+        }
+
+        const double mainstreamA = mainstreamScore(a);
+        const double mainstreamB = mainstreamScore(b);
+        if (!qFuzzyCompare(mainstreamA + 1.0, mainstreamB + 1.0)) {
+            return mainstreamA > mainstreamB;
         }
 
         const double ratingA = ratingValue(a);
