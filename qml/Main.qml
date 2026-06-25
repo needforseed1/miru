@@ -227,7 +227,7 @@ ApplicationWindow {
             AppButton {
                 text: "Home"
                 variant: "nav"
-                active: root.page === 0 || root.page === 1
+                active: root.page === 0
                 onClicked: {
                     if (root.page === 3)
                         appController.stopPlayback()
@@ -364,8 +364,8 @@ ApplicationWindow {
                     readonly property var movieSearchResults: root.searchResultsByType("movie")
                     readonly property var seriesSearchResults: root.searchResultsByType("series")
 
-                    // search results (while searching)
-                    SearchResultsGrid {
+                    // search results (while searching): one scrollable row per type
+                    SectionRail {
                         visible: searchAndHomeColumn.movieSearchResults.length > 0
                         title: "Movies"
                         subtitle: searchAndHomeColumn.movieSearchResults.length + " matches"
@@ -373,7 +373,7 @@ ApplicationWindow {
                         onOpenRequested: item => root.openDetails(item)
                     }
 
-                    SearchResultsGrid {
+                    SectionRail {
                         visible: searchAndHomeColumn.seriesSearchResults.length > 0
                         title: "TV Shows"
                         subtitle: searchAndHomeColumn.seriesSearchResults.length + " matches"
