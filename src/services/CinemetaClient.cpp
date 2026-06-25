@@ -1,10 +1,13 @@
 #include "CinemetaClient.h"
 
+#include <QDir>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QNetworkDiskCache>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QStandardPaths>
 #include <QUrl>
 
 namespace {
@@ -24,6 +27,17 @@ QString sanitizeRating(const QString &raw)
 CinemetaClient::CinemetaClient(QObject *parent)
     : QObject(parent)
 {
+    // Cache catalog/manifest/meta JSON on disk. Repeat launches serve it
+    // straight from disk while it is still fresh (per the addon's Cache-Control
+    // max-age), and fall back to a fast revalidation otherwise.
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
+                        + QStringLiteral("/metadata");
+    QDir().mkpath(dir);
+
+    auto *diskCache = new QNetworkDiskCache(this);
+    diskCache->setCacheDirectory(dir);
+    diskCache->setMaximumCacheSize(32LL * 1024 * 1024);
+    m_network.setCache(diskCache);
 }
 
 void CinemetaClient::fetchCatalog(const QString &type, const QString &catalogId)

@@ -7,6 +7,7 @@
 #include <QSettings>
 
 #include "app/ApplicationController.h"
+#include "app/CachingNetworkFactory.h"
 #include "player/MpvVideoSurface.h"
 
 int main(int argc, char *argv[])
@@ -36,6 +37,9 @@ int main(int argc, char *argv[])
     qmlRegisterType<MpvVideoSurface>("StremioLinux", 1, 0, "MpvVideoSurface");
 
     QQmlApplicationEngine engine;
+    // Persist poster artwork to disk so it isn't re-downloaded every launch.
+    static CachingNetworkFactory networkFactory;
+    engine.setNetworkAccessManagerFactory(&networkFactory);
     engine.rootContext()->setContextProperty("appController", &controller);
 
     QObject::connect(
