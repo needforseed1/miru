@@ -3,9 +3,12 @@
 #include <algorithm>
 #include <QDateTime>
 #include <QGuiApplication>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSettings>
+#include <QUrl>
 #include <QVariant>
 
 namespace {
@@ -249,6 +252,7 @@ ApplicationController::ApplicationController(QObject *parent)
 
     connect(&m_player, &ExternalMpvPlayer::errorOccurred, this, [this](const QString &message) {
         m_playbackBuffering = false;
+        abortStreamPrewarm();
         emit playbackStateChanged();
         setStatusMessage(message);
     });
@@ -263,6 +267,7 @@ ApplicationController::ApplicationController(QObject *parent)
 
     connect(&m_player, &ExternalMpvPlayer::playbackPlaying, this, [this]() {
         m_playbackBuffering = false;
+        abortStreamPrewarm(); // mpv has read the tail; stop draining it
         emit playbackStateChanged();
         setStatusMessage(m_playbackEmbedded ? QStringLiteral("Playing")
                                             : QStringLiteral("Playing in mpv"));
@@ -288,6 +293,7 @@ ApplicationController::ApplicationController(QObject *parent)
     connect(&m_player, &ExternalMpvPlayer::playbackFinished, this, [this](double position, double duration) {
         m_playbackActive = false;
         m_playbackBuffering = false;
+        abortStreamPrewarm();
         m_playbackPosition = position;
         m_playbackDuration = duration;
         m_playbackPaused = false;
@@ -660,6 +666,10 @@ bool ApplicationController::startPlayback(const QString &url, const QString &tit
                                           const QStringList &subtitleUrls, double startSeconds,
                                           qulonglong windowId)
 {
+    // Warm the backend's tail range before/while mpv opens the file, so its
+    // seek to the MKV Cues at EOF doesn't pay a cold on-demand fetch.
+    prewarmStreamTail(url, headers);
+
     const QStringList extraArgs = QProcess::splitCommand(m_mpvExtraArgs);
     const bool embedded = windowId > 0;
 
@@ -692,6 +702,47 @@ bool ApplicationController::startPlayback(const QString &url, const QString &tit
                   m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint, extraArgs,
                   startSeconds, 0);
     return false;
+}
+
+void ApplicationController::prewarmStreamTail(const QString &url, const QVariantMap &headers)
+{
+    const QString trimmed = url.trimmed();
+    if (trimmed.isEmpty()) {
+        return;
+    }
+    abortStreamPrewarm();
+
+    QNetworkRequest request{QUrl(trimmed)};
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("AIOStreamsLinux/0.1"));
+    // Last 16 MB: comfortably covers the MKV Cues/SeekHead the demuxer reads at
+    // open, without pulling a meaningful fraction of a multi-GB file.
+    request.setRawHeader("Range", "bytes=-16777216");
+    for (auto it = headers.constBegin(); it != headers.constEnd(); ++it) {
+        const QString value = it.value().toString();
+        if (!value.isEmpty()) {
+            request.setRawHeader(it.key().toUtf8(), value.toUtf8());
+        }
+    }
+
+    QNetworkReply *reply = m_streamPrewarm.get(request);
+    m_streamPrewarmReply = reply;
+    // Drain and discard: we only want the backend to fetch the tail into its
+    // cache, not to buffer it here.
+    connect(reply, &QNetworkReply::readyRead, reply, [reply]() { reply->readAll(); });
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        if (m_streamPrewarmReply == reply) {
+            m_streamPrewarmReply = nullptr;
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApplicationController::abortStreamPrewarm()
+{
+    if (m_streamPrewarmReply) {
+        m_streamPrewarmReply->abort();
+        m_streamPrewarmReply = nullptr;
+    }
 }
 
 void ApplicationController::setPlaybackState(bool active, bool embedded, const QString &title)

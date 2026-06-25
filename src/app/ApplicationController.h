@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QNetworkAccessManager>
 #include <QObject>
 #include <QVariantList>
 #include <QVariantMap>
@@ -10,6 +11,8 @@
 #include "../services/ImdbRatings.h"
 #include "../services/SubtitlesClient.h"
 #include "WatchHistory.h"
+
+class QNetworkReply;
 
 class ApplicationController : public QObject
 {
@@ -130,6 +133,11 @@ private:
                        const QStringList &subtitleUrls, double startSeconds,
                        qulonglong windowId);
     void setPlaybackState(bool active, bool embedded, const QString &title = QString());
+    // Warm the on-demand backend's tail range (MKV Cues live there) in parallel
+    // with mpv's open, so its seek-to-EOF index read is served from a warm
+    // backend cache instead of a cold ~9s Usenet fetch.
+    void prewarmStreamTail(const QString &url, const QVariantMap &headers);
+    void abortStreamPrewarm();
     void setLoading(bool loading);
     void setStreamsLoading(bool loading);
     void setStatusMessage(const QString &message);
@@ -144,6 +152,8 @@ private:
     ImdbRatings m_imdbRatings;
     WatchHistory m_watchHistory;
     ExternalMpvPlayer m_player;
+    QNetworkAccessManager m_streamPrewarm;
+    QNetworkReply *m_streamPrewarmReply = nullptr;
 
     QVariantList m_homeSections; // [{ id, type, title, items }]
     QVariantList m_searchResults;
