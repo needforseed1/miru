@@ -90,140 +90,16 @@ int searchRank(const QVariantMap &item, const QString &query)
     return 100;
 }
 
-double ratingValue(const QVariantMap &item)
-{
-    bool ok = false;
-    const double rating = item.value(QStringLiteral("imdbRating")).toString().toDouble(&ok);
-    return ok ? rating : 0.0;
-}
-
-int runtimeMinutes(const QVariantMap &item)
-{
-    static const QRegularExpression runtimePattern(QStringLiteral("\\b(\\d+)\\s*min\\b"),
-                                                   QRegularExpression::CaseInsensitiveOption);
-    const QRegularExpressionMatch match = runtimePattern.match(item.value(QStringLiteral("runtime")).toString());
-    return match.hasMatch() ? match.captured(1).toInt() : 0;
-}
-
-bool hasNormalReleaseYear(const QVariantMap &item)
-{
-    static const QRegularExpression yearPattern(QStringLiteral("\\b(19|20)\\d{2}\\b"));
-    return yearPattern.match(item.value(QStringLiteral("releaseInfo")).toString()).hasMatch();
-}
-
-double mainstreamScore(const QVariantMap &item)
-{
-    double score = 0.0;
-    const double rating = ratingValue(item);
-    if (rating > 0.0) {
-        score += 40.0 + rating * 15.0;
-    }
-    if (item.value(QStringLiteral("id")).toString().startsWith(QStringLiteral("tt"))) {
-        score += 18.0;
-    }
-    if (!item.value(QStringLiteral("poster")).toString().isEmpty()) {
-        score += 12.0;
-    }
-    if (!item.value(QStringLiteral("background")).toString().isEmpty()) {
-        score += 6.0;
-    }
-    if (!item.value(QStringLiteral("runtime")).toString().isEmpty()) {
-        score += 8.0;
-    }
-    if (!item.value(QStringLiteral("description")).toString().isEmpty()) {
-        score += 5.0;
-    }
-    if (hasNormalReleaseYear(item)) {
-        score += 5.0;
-    }
-    if (item.value(QStringLiteral("type")).toString() == QStringLiteral("movie")) {
-        score += 3.0;
-    }
-    const QStringList genres = item.value(QStringLiteral("genres")).toStringList();
-    if (genres.contains(QStringLiteral("Short"), Qt::CaseInsensitive)) {
-        score -= 60.0;
-    }
-    if (genres.contains(QStringLiteral("Documentary"), Qt::CaseInsensitive)) {
-        score -= 15.0;
-    }
-    const int runtime = runtimeMinutes(item);
-    if (runtime > 0 && runtime < 45) {
-        score -= 80.0;
-    }
-    if (item.contains(QStringLiteral("popularity"))) {
-        const double popularity = item.value(QStringLiteral("popularity")).toDouble();
-        if (popularity >= 0.1) {
-            score += 20.0;
-        } else if (popularity >= 0.02) {
-            score += 10.0;
-        } else if (popularity > 0.0 && popularity < 0.005) {
-            score -= 35.0;
-        }
-    }
-    return score;
-}
-
-double maxPopularity(const QVariantList &items)
-{
-    double maxPop = 0.0;
-    for (const QVariant &entry : items) {
-        const QVariantMap item = entry.toMap();
-        if (item.contains(QStringLiteral("popularity"))) {
-            maxPop = std::max(maxPop, item.value(QStringLiteral("popularity")).toDouble());
-        }
-    }
-    return maxPop;
-}
-
-// Popularity scaled relative to the most popular item in the same result set.
-// Absolute popularity scales differ wildly by source (Cinemeta ~0..0.1, TMDB
-// via AIOMetadata ~0..50), so a fixed bucket ladder saturates or underflows.
-// We only apply this when the source clearly supplies TMDB-scale popularity;
-// for Cinemeta (max well under 1.0) it stays zero and mainstreamScore decides.
-double relativePopularityBonus(const QVariantMap &item, double maxPop)
-{
-    if (maxPop < 1.0) {
-        return 0.0;
-    }
-    const double popularity = item.value(QStringLiteral("popularity")).toDouble();
-    if (popularity <= 0.0) {
-        return 0.0;
-    }
-    return 45.0 * (popularity / maxPop);
-}
-
 void sortSearchResults(QVariantList &items, const QString &query)
 {
-    // Relevance is a strict primary key: a better textual match always sorts
-    // above a worse one, regardless of popularity. Within a tier, the
-    // query-independent mainstream score (and then rating, then title length)
-    // decides order. This keeps popular-but-unrelated fuzzy matches from
-    // floating above genuine matches.
-    const double maxPop = maxPopularity(items);
-    std::stable_sort(items.begin(), items.end(), [&query, maxPop](const QVariant &left, const QVariant &right) {
-        const QVariantMap a = left.toMap();
-        const QVariantMap b = right.toMap();
-
-        const int rankA = searchRank(a, query);
-        const int rankB = searchRank(b, query);
-        if (rankA != rankB) {
-            return rankA < rankB;
-        }
-
-        const double mainstreamA = mainstreamScore(a) + relativePopularityBonus(a, maxPop);
-        const double mainstreamB = mainstreamScore(b) + relativePopularityBonus(b, maxPop);
-        if (!qFuzzyCompare(mainstreamA + 1.0, mainstreamB + 1.0)) {
-            return mainstreamA > mainstreamB;
-        }
-
-        const double ratingA = ratingValue(a);
-        const double ratingB = ratingValue(b);
-        if (!qFuzzyCompare(ratingA + 1.0, ratingB + 1.0)) {
-            return ratingA > ratingB;
-        }
-
-        return a.value(QStringLiteral("name")).toString().size()
-            < b.value(QStringLiteral("name")).toString().size();
+    // The metadata addon already ranks its search results (TMDB popularity for
+    // AIOMetadata, Cinemeta's own ordering otherwise), and that is the order
+    // Stremio itself shows. We only apply a relevance guard: a stable sort by
+    // match tier keeps the addon's order within each tier while demoting the
+    // fuzzy non-matches the addon mixes in (e.g. "Anatomy of a Fall" for a
+    // "Dune" search) and later-word matches below genuine title matches.
+    std::stable_sort(items.begin(), items.end(), [&query](const QVariant &left, const QVariant &right) {
+        return searchRank(left.toMap(), query) < searchRank(right.toMap(), query);
     });
 }
 }
