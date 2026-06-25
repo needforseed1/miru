@@ -99,16 +99,25 @@ ColumnLayout {
             }
         }
 
-        // left fade — appears once scrolled away from the start
+        // left fade + chevron — appears once scrolled away from the start
         Rectangle {
             anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
             width: rail.fadeWidth
             opacity: railList.atXBeginning ? 0 : 1
-            Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutQuad } }
+            Behavior on opacity { NumberAnimation { duration: 70; easing.type: Easing.OutQuad } }
             gradient: Gradient {
                 orientation: Gradient.Horizontal
                 GradientStop { position: 0.0; color: Theme.bg }
                 GradientStop { position: 1.0; color: "transparent" }
+            }
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.s4
+                anchors.verticalCenter: parent.verticalCenter
+                text: "‹"   // ‹
+                color: Theme.textDim
+                font.pixelSize: 30
+                font.bold: true
             }
         }
 
@@ -117,7 +126,7 @@ ColumnLayout {
             anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
             width: rail.fadeWidth
             opacity: railList.atXEnd ? 0 : 1
-            Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutQuad } }
+            Behavior on opacity { NumberAnimation { duration: 70; easing.type: Easing.OutQuad } }
             gradient: Gradient {
                 orientation: Gradient.Horizontal
                 GradientStop { position: 0.0; color: "transparent" }
