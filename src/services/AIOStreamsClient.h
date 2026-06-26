@@ -8,6 +8,7 @@
 #include "BadgeMatcher.h"
 
 class QJsonObject;
+class QNetworkReply;
 
 class AIOStreamsClient : public QObject
 {
@@ -25,6 +26,7 @@ signals:
 
 private:
     void requestStreams(const QString &type, const QString &id, int attempt);
+    void cancelActiveRequest();
     QString normalizedBaseUrl() const;
     QVariantMap normalizeStream(const QJsonObject &stream) const;
     bool isPlayableStream(const QJsonObject &stream) const;
@@ -32,6 +34,7 @@ private:
     QString formatSize(double bytes) const;
 
     QNetworkAccessManager m_network;
+    QNetworkReply *m_activeReply = nullptr; // in-flight stream request, if any
     QString m_baseUrl;
     BadgeMatcher m_badges;
 };

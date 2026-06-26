@@ -43,7 +43,21 @@ void AIOStreamsClient::fetchStreams(const QString &type, const QString &id)
         emit errorOccurred(QStringLiteral("AIOStreams addon URL is not configured"));
         return;
     }
+    // Drop any request still running for a previously selected episode so its
+    // late response cannot replace the streams for the one now selected (and so
+    // we stop hammering the indexer/debrid backend for a release nobody wants).
+    cancelActiveRequest();
     requestStreams(type, id, 0);
+}
+
+void AIOStreamsClient::cancelActiveRequest()
+{
+    if (m_activeReply) {
+        m_activeReply->disconnect(this); // its finished handler must not run
+        m_activeReply->abort();
+        m_activeReply->deleteLater();
+        m_activeReply = nullptr;
+    }
 }
 
 void AIOStreamsClient::requestStreams(const QString &type, const QString &id, int attempt)
@@ -55,8 +69,12 @@ void AIOStreamsClient::requestStreams(const QString &type, const QString &id, in
     request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("AIOStreamsLinux/0.1"));
 
     QNetworkReply *reply = m_network.get(request);
+    m_activeReply = reply;
     connect(reply, &QNetworkReply::finished, this, [this, reply, type, id, attempt]() {
         reply->deleteLater();
+        if (m_activeReply == reply) {
+            m_activeReply = nullptr;
+        }
 
         if (reply->error() != QNetworkReply::NoError) {
             // A cold first request can fail (timeout / dropped connection); a

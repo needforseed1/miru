@@ -147,27 +147,6 @@ ApplicationWindow {
 
     // For a series, auto-select the first episode once its metadata arrives,
     // so releases for S01E01 load by default instead of showing stale ones.
-    Connections {
-        target: appController
-        function onSelectedMetaChanged() {
-            if (!root.isSeries || root.selectedEpisodeId !== "")
-                return
-            const meta = appController.selectedMeta
-            if (!meta || meta.id !== root.baseId)
-                return
-            const videos = meta.videos || []
-            let first = null
-            for (let i = 0; i < videos.length; ++i) {
-                const v = videos[i]
-                if (v.season > 0 && (first === null
-                        || v.season < first.season
-                        || (v.season === first.season && v.episode < first.episode)))
-                    first = v
-            }
-            if (first)
-                root.playEpisode(first)
-        }
-    }
 
     // ===== Background =======================================================
     Rectangle {
