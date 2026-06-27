@@ -296,7 +296,6 @@ ApplicationController::ApplicationController(QObject *parent)
         emit playbackPositionChanged();
         if (!m_currentPlaybackMedia.isEmpty()) {
             m_watchHistory.record(m_currentPlaybackMedia, position, duration);
-            m_trakt.sendPlaybackProgress(m_currentPlaybackMedia, position, duration);
         }
     });
 
@@ -319,6 +318,7 @@ ApplicationController::ApplicationController(QObject *parent)
         emit playbackPositionChanged();
         if (!m_currentPlaybackMedia.isEmpty()) {
             m_watchHistory.record(m_currentPlaybackMedia, position, duration);
+            m_trakt.sendPlaybackProgress(m_currentPlaybackMedia, position, duration);
         }
     });
 

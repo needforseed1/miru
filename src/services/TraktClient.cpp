@@ -41,6 +41,23 @@ QString imdbId(const QJsonObject &ids)
     return id.startsWith(QStringLiteral("tt")) ? id : QString();
 }
 
+QString contentId(const QJsonObject &ids)
+{
+    const QString imdb = imdbId(ids);
+    if (!imdb.isEmpty()) {
+        return imdb;
+    }
+    const int tmdb = ids.value(QStringLiteral("tmdb")).toInt();
+    if (tmdb > 0) {
+        return QStringLiteral("tmdb:%1").arg(tmdb);
+    }
+    const int trakt = ids.value(QStringLiteral("trakt")).toInt();
+    if (trakt > 0) {
+        return QStringLiteral("trakt:%1").arg(trakt);
+    }
+    return {};
+}
+
 qint64 pausedAtSeconds(const QJsonObject &entry)
 {
     const QDateTime pausedAt = QDateTime::fromString(entry.value(QStringLiteral("paused_at")).toString(), Qt::ISODate);
@@ -61,7 +78,7 @@ QVariantList playbackItemsFromJson(const QByteArray &payload, const QString &kin
         QVariantMap item;
         if (kind == QStringLiteral("movie")) {
             const QJsonObject movie = entry.value(QStringLiteral("movie")).toObject();
-            const QString id = imdbId(movie.value(QStringLiteral("ids")).toObject());
+            const QString id = contentId(movie.value(QStringLiteral("ids")).toObject());
             if (id.isEmpty()) {
                 continue;
             }
@@ -72,7 +89,7 @@ QVariantList playbackItemsFromJson(const QByteArray &payload, const QString &kin
         } else {
             const QJsonObject show = entry.value(QStringLiteral("show")).toObject();
             const QJsonObject episode = entry.value(QStringLiteral("episode")).toObject();
-            const QString baseId = imdbId(show.value(QStringLiteral("ids")).toObject());
+            const QString baseId = contentId(show.value(QStringLiteral("ids")).toObject());
             const int season = episode.value(QStringLiteral("season")).toInt();
             const int number = episode.value(QStringLiteral("number")).toInt();
             if (baseId.isEmpty() || season <= 0 || number <= 0) {
@@ -360,16 +377,18 @@ void TraktClient::sendPlaybackProgress(const QVariantMap &media, double position
         return;
     }
 
-    const QString action = progress >= 92.0 ? QStringLiteral("stop") : QStringLiteral("pause");
-    postAuthorized(QStringLiteral("/scrobble/%1").arg(action), jsonBody(body), [this](QNetworkReply *reply) {
+    postAuthorized(QStringLiteral("/scrobble/stop"), jsonBody(body), [this](QNetworkReply *reply) {
         const QByteArray payload = reply->readAll();
         const int status = httpStatus(reply);
         if ((reply->error() == QNetworkReply::NoError && status >= 200 && status < 300) || status == 409) {
+            setStatus(QStringLiteral("Trakt progress updated"));
             fetchPlaybackProgress();
             return;
         }
 
-        setStatus(apiErrorMessage(payload, QStringLiteral("Failed to update Trakt playback progress")));
+        setStatus(apiErrorMessage(payload, status > 0
+            ? QStringLiteral("Failed to update Trakt playback progress (HTTP %1)").arg(status)
+            : QStringLiteral("Failed to update Trakt playback progress")));
         emit errorOccurred(m_statusMessage);
     });
 }
@@ -604,10 +623,6 @@ void TraktClient::publishPlaybackProgressIfReady()
         return left.toMap().value(QStringLiteral("updatedAt")).toLongLong()
             > right.toMap().value(QStringLiteral("updatedAt")).toLongLong();
     });
-    while (items.size() > 20) {
-        items.removeLast();
-    }
-
     m_playbackProgress = items;
     emit changed();
 }
