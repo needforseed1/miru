@@ -26,6 +26,7 @@ public:
     QString userCode() const;
     QString verificationUrl() const;
     QVariantList playbackProgress() const;
+    QVariantList nextUp() const;
     bool connected() const;
     bool authPending() const;
     bool busy() const;
@@ -37,6 +38,7 @@ public:
     void disconnectTrakt();
     void fetchPlaybackProgress();
     void sendPlaybackProgress(const QVariantMap &media, double position, double duration);
+    void applyMetadata(const QVariantMap &meta);
 
 signals:
     void changed();
@@ -80,6 +82,7 @@ private:
     QString m_username;
     QString m_statusMessage;
     QVariantList m_playbackProgress;
+    QVariantList m_nextUp;
     QVariantList m_pendingPlaybackMovies;
     QVariantList m_pendingPlaybackEpisodes;
     QVariantList m_pendingNextUpShows;

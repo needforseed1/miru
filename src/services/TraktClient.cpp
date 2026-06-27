@@ -277,6 +277,7 @@ QString TraktClient::statusMessage() const { return m_statusMessage; }
 QString TraktClient::userCode() const { return m_userCode; }
 QString TraktClient::verificationUrl() const { return m_verificationUrl; }
 QVariantList TraktClient::playbackProgress() const { return m_playbackProgress; }
+QVariantList TraktClient::nextUp() const { return m_nextUp; }
 bool TraktClient::connected() const { return !m_accessToken.isEmpty() && !m_refreshToken.isEmpty(); }
 bool TraktClient::authPending() const { return !m_deviceCode.isEmpty(); }
 bool TraktClient::busy() const { return m_busy; }
@@ -380,6 +381,7 @@ void TraktClient::clearTokens()
     m_tokenExpiresIn = 0;
     m_username.clear();
     m_playbackProgress.clear();
+    m_nextUp.clear();
     m_pendingPlaybackMovies.clear();
     m_pendingPlaybackEpisodes.clear();
     m_pendingNextUpShows.clear();
@@ -548,6 +550,47 @@ void TraktClient::sendPlaybackProgress(const QVariantMap &media, double position
             : QStringLiteral("Failed to update Trakt playback progress")));
         emit errorOccurred(m_statusMessage);
     });
+}
+
+void TraktClient::applyMetadata(const QVariantMap &meta)
+{
+    const QString id = meta.value(QStringLiteral("id")).toString();
+    if (id.isEmpty()) {
+        return;
+    }
+
+    auto applyToList = [&meta, &id](QVariantList &items) {
+        bool changed = false;
+        for (QVariant &entry : items) {
+            QVariantMap item = entry.toMap();
+            const QString itemId = item.value(QStringLiteral("type")).toString() == QStringLiteral("series")
+                ? item.value(QStringLiteral("baseId")).toString()
+                : item.value(QStringLiteral("id")).toString();
+            if (itemId != id) {
+                continue;
+            }
+
+            for (const QString &key : {QStringLiteral("poster"), QStringLiteral("background"), QStringLiteral("description"), QStringLiteral("releaseInfo")}) {
+                const QVariant value = meta.value(key);
+                if (!value.toString().isEmpty() && item.value(key).toString().isEmpty()) {
+                    item.insert(key, value);
+                    changed = true;
+                }
+            }
+            const QString name = meta.value(QStringLiteral("name")).toString();
+            if (!name.isEmpty()) {
+                item.insert(QStringLiteral("name"), name);
+                changed = true;
+            }
+            entry = item;
+        }
+        return changed;
+    };
+
+    const bool metadataChanged = applyToList(m_playbackProgress) | applyToList(m_nextUp);
+    if (metadataChanged) {
+        emit changed();
+    }
 }
 
 QJsonObject TraktClient::scrobbleBody(const QVariantMap &media, double progressPercent) const
@@ -820,6 +863,7 @@ void TraktClient::publishPlaybackProgressIfReady()
 
     QVariantList items = m_pendingPlaybackMovies;
     items.append(m_pendingPlaybackEpisodes);
+    m_nextUp.clear();
 
     QSet<QString> pausedShows;
     QSet<QString> seenKeys;
@@ -844,19 +888,16 @@ void TraktClient::publishPlaybackProgressIfReady()
             continue;
         }
         seenKeys.insert(key);
-        items.append(item);
+        m_nextUp.append(item);
     }
 
     std::sort(items.begin(), items.end(), [](const QVariant &left, const QVariant &right) {
-        const QVariantMap a = left.toMap();
-        const QVariantMap b = right.toMap();
-        const bool aNextUp = a.value(QStringLiteral("nextUp")).toBool();
-        const bool bNextUp = b.value(QStringLiteral("nextUp")).toBool();
-        if (aNextUp != bNextUp) {
-            return !aNextUp;
-        }
-        return a.value(QStringLiteral("updatedAt")).toLongLong()
-            > b.value(QStringLiteral("updatedAt")).toLongLong();
+        return left.toMap().value(QStringLiteral("updatedAt")).toLongLong()
+            > right.toMap().value(QStringLiteral("updatedAt")).toLongLong();
+    });
+    std::sort(m_nextUp.begin(), m_nextUp.end(), [](const QVariant &left, const QVariant &right) {
+        return left.toMap().value(QStringLiteral("updatedAt")).toLongLong()
+            > right.toMap().value(QStringLiteral("updatedAt")).toLongLong();
     });
     m_playbackProgress = items;
     emit changed();

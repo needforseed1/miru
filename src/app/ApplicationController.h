@@ -2,6 +2,7 @@
 
 #include <QNetworkAccessManager>
 #include <QObject>
+#include <QSet>
 #include <QVariantList>
 #include <QVariantMap>
 
@@ -21,6 +22,7 @@ class ApplicationController : public QObject
     Q_PROPERTY(QVariantList homeSections READ homeSections NOTIFY homeSectionsChanged)
     Q_PROPERTY(QVariantMap featured READ featured NOTIFY homeSectionsChanged)
     Q_PROPERTY(QVariantList continueWatching READ continueWatching NOTIFY continueWatchingChanged)
+    Q_PROPERTY(QVariantList nextUp READ nextUp NOTIFY nextUpChanged)
     Q_PROPERTY(QVariantList searchResults READ searchResults NOTIFY searchResultsChanged)
     Q_PROPERTY(QVariantMap selectedMeta READ selectedMeta NOTIFY selectedMetaChanged)
     Q_PROPERTY(QVariantList streams READ streams NOTIFY streamsChanged)
@@ -61,6 +63,7 @@ public:
     QVariantList homeSections() const;
     QVariantMap featured() const;
     QVariantList continueWatching() const;
+    QVariantList nextUp() const;
     QVariantList searchResults() const;
     QVariantMap selectedMeta() const;
     QVariantList streams() const;
@@ -133,6 +136,7 @@ public:
 signals:
     void homeSectionsChanged();
     void continueWatchingChanged();
+    void nextUpChanged();
     void searchResultsChanged();
     void selectedMetaChanged();
     void streamsChanged();
@@ -173,8 +177,10 @@ private:
     QVariantList withTitleRatings(const QVariantList &items) const;
     QVariantMap mediaForStreamRequest(const QString &type, const QString &id) const;
     QVariantMap currentPlaybackMedia(const QVariantMap &stream) const;
+    void hydrateTraktResumeMetadata();
 
     CinemetaClient m_cinemeta;
+    CinemetaClient m_resumeMetadata;
     AIOStreamsClient m_aioStreams;
     SubtitlesClient m_subtitles;
     ImdbRatings m_imdbRatings;
@@ -192,6 +198,7 @@ private:
     QVariantList m_currentSubtitles;
     QVariantMap m_streamMedia;
     QVariantMap m_currentPlaybackMedia;
+    QSet<QString> m_resumeMetadataRequests;
     QString m_pendingRemoteResumeType;
     QString m_pendingRemoteResumeId;
     double m_pendingRemoteResumePercent = 0.0;

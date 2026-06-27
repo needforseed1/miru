@@ -12,6 +12,27 @@ ColumnLayout {
 
     spacing: Theme.s16
 
+    function syncSelectedSeason() {
+        if (selectedEpisodeId === "")
+            return
+        for (var i = 0; i < videos.length; ++i) {
+            var v = videos[i]
+            if (v.id === selectedEpisodeId) {
+                selectedSeason = v.season
+                return
+            }
+        }
+        const parts = selectedEpisodeId.split(":")
+        if (parts.length >= 3) {
+            const season = parseInt(parts[1])
+            if (season > 0)
+                selectedSeason = season
+        }
+    }
+
+    onSelectedEpisodeIdChanged: syncSelectedSeason()
+    onVideosChanged: syncSelectedSeason()
+
     // Switch season and immediately select its first episode, so changing
     // season starts a new release search without an extra click.
     function selectSeason(season) {

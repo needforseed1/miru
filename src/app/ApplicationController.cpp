@@ -161,6 +161,7 @@ ApplicationController::ApplicationController(QObject *parent)
     m_aioStreams.setBaseUrl(m_aioStreamsUrl);
     m_metadataUrl = settings.value(QStringLiteral("addons/metadataUrl")).toString();
     m_cinemeta.setBaseUrl(m_metadataUrl);
+    m_resumeMetadata.setBaseUrl(m_metadataUrl);
     m_subtitleLanguage = settings.value(QStringLiteral("subtitles/language"), QStringLiteral("eng")).toString();
     m_uiScale = settings.value(QStringLiteral("ui/scaleFactor"), 1.0).toDouble();
     m_showPosterRatings = settings.value(QStringLiteral("ui/showPosterRatings"), true).toBool();
@@ -258,9 +259,19 @@ ApplicationController::ApplicationController(QObject *parent)
     connect(&m_trakt, &TraktClient::changed, this, [this]() {
         emit traktChanged();
         emit continueWatchingChanged();
+        emit nextUpChanged();
+        hydrateTraktResumeMetadata();
     });
     connect(&m_trakt, &TraktClient::errorOccurred, this, [this](const QString &message) {
         setStatusMessage(message);
+    });
+
+    connect(&m_resumeMetadata, &CinemetaClient::metaReady, this, [this](const QVariantMap &meta) {
+        m_trakt.applyMetadata(meta);
+    });
+    connect(&m_resumeMetadata, &CinemetaClient::errorOccurred, this, [](const QString &) {
+        // Resume artwork hydration is best-effort; details/search errors still
+        // surface through the main metadata client.
     });
 
     connect(&m_subtitles, &SubtitlesClient::subtitlesReady, this, [this](const QVariantList &subtitles) {
@@ -428,6 +439,38 @@ QVariantMap ApplicationController::currentPlaybackMedia(const QVariantMap &strea
     return media;
 }
 
+void ApplicationController::hydrateTraktResumeMetadata()
+{
+    if (!m_trakt.connected()) {
+        return;
+    }
+
+    QVariantList items = m_trakt.playbackProgress();
+    items.append(m_trakt.nextUp());
+    for (const QVariant &entry : items) {
+        const QVariantMap item = entry.toMap();
+        if (!item.value(QStringLiteral("poster")).toString().isEmpty()
+            || !item.value(QStringLiteral("background")).toString().isEmpty()) {
+            continue;
+        }
+
+        const QString type = item.value(QStringLiteral("type")).toString();
+        const QString id = type == QStringLiteral("series")
+            ? item.value(QStringLiteral("baseId")).toString()
+            : item.value(QStringLiteral("id")).toString();
+        if (type.isEmpty() || id.isEmpty()) {
+            continue;
+        }
+
+        const QString key = QStringLiteral("%1:%2").arg(type, id);
+        if (m_resumeMetadataRequests.contains(key)) {
+            continue;
+        }
+        m_resumeMetadataRequests.insert(key);
+        m_resumeMetadata.fetchMeta(type, id);
+    }
+}
+
 void ApplicationController::enrichEpisodeRatings()
 {
     if (!m_imdbRatings.ready()) {
@@ -489,6 +532,10 @@ QVariantList ApplicationController::searchResults() const { return m_searchResul
 QVariantList ApplicationController::continueWatching() const
 {
     return m_trakt.connected() ? m_trakt.playbackProgress() : m_watchHistory.inProgress();
+}
+QVariantList ApplicationController::nextUp() const
+{
+    return m_trakt.connected() ? m_trakt.nextUp() : QVariantList{};
 }
 QVariantMap ApplicationController::selectedMeta() const { return m_selectedMeta; }
 QVariantList ApplicationController::streams() const { return m_streams; }
@@ -858,9 +905,12 @@ void ApplicationController::setMetadataUrl(const QString &url)
 
     m_metadataUrl = trimmed;
     m_cinemeta.setBaseUrl(trimmed);
+    m_resumeMetadata.setBaseUrl(trimmed);
+    m_resumeMetadataRequests.clear();
     QSettings settings;
     settings.setValue(QStringLiteral("addons/metadataUrl"), trimmed);
     emit metadataUrlChanged();
+    hydrateTraktResumeMetadata();
     setStatusMessage(trimmed.isEmpty() ? QStringLiteral("Using Cinemeta for metadata")
                                        : QStringLiteral("Metadata addon configured"));
     loadHome();

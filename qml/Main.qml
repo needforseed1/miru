@@ -335,6 +335,51 @@ ApplicationWindow {
                     }
                 }
 
+                // next up
+                ColumnLayout {
+                    id: nextUpRail
+                    visible: appController.searchResults.length === 0 && appController.nextUp.length > 0
+                    Layout.fillWidth: true
+                    Layout.leftMargin: Theme.s32
+                    Layout.rightMargin: Theme.s32
+                    spacing: Theme.s12
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.s12
+                        Rectangle { Layout.preferredWidth: 4; Layout.preferredHeight: 22; radius: 2; color: Theme.accentBright }
+                        Text {
+                            text: "Next Up"
+                            color: Theme.text
+                            font.pixelSize: Theme.fH3
+                            font.bold: true
+                        }
+                        Text {
+                            text: appController.nextUp.length + " shows"
+                            color: Theme.textMute
+                            font.pixelSize: Theme.fSmall
+                            Layout.alignment: Qt.AlignBottom
+                            bottomPadding: 4
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+
+                    ListView {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 326
+                        orientation: ListView.Horizontal
+                        spacing: Theme.s16
+                        clip: true
+                        boundsBehavior: Flickable.StopAtBounds
+                        model: appController.nextUp
+                        delegate: ResumeCard {
+                            item: modelData
+                            onClicked: clickedItem => root.resumeItem(clickedItem)
+                            onRemoveRequested: key => appController.removeContinueWatching(key)
+                        }
+                    }
+                }
+
                 ColumnLayout {
                     id: searchAndHomeColumn
 
