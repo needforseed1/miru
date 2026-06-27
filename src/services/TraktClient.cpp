@@ -7,6 +7,8 @@
 #include <QSettings>
 #include <QUrl>
 
+#include <algorithm>
+
 namespace {
 constexpr auto kBaseUrl = "https://api.trakt.tv";
 
@@ -180,6 +182,7 @@ void TraktClient::handleDeviceCodeReply(QNetworkReply *reply)
     m_verificationUrl = object.value(QStringLiteral("verification_url")).toString();
     const int expiresIn = object.value(QStringLiteral("expires_in")).toInt(600);
     m_pollIntervalSeconds = object.value(QStringLiteral("interval")).toInt(5);
+    m_pollFailures = 0;
     m_deviceCodeExpiresAt = QDateTime::currentDateTimeUtc().addSecs(expiresIn);
 
     if (m_deviceCode.isEmpty() || m_userCode.isEmpty() || m_verificationUrl.isEmpty()) {
@@ -190,7 +193,7 @@ void TraktClient::handleDeviceCodeReply(QNetworkReply *reply)
     }
 
     setStatus(QStringLiteral("Open %1 and enter code %2").arg(m_verificationUrl, m_userCode));
-    m_pollTimer.start(m_pollIntervalSeconds * 1000);
+    scheduleDeviceTokenPoll();
     emit changed();
 }
 
@@ -219,21 +222,30 @@ void TraktClient::handleDeviceTokenReply(QNetworkReply *reply)
     const QByteArray payload = reply->readAll();
     const QJsonObject object = QJsonDocument::fromJson(payload).object();
     const QString error = object.value(QStringLiteral("error")).toString();
-    if (error == QStringLiteral("authorization_pending")) {
-        m_pollTimer.start(m_pollIntervalSeconds * 1000);
+    if (error == QStringLiteral("authorization_pending") || error == QStringLiteral("pending")) {
+        m_pollFailures = 0;
+        scheduleDeviceTokenPoll();
         return;
     }
     if (error == QStringLiteral("slow_down")) {
+        m_pollFailures = 0;
         m_pollIntervalSeconds += 5;
-        m_pollTimer.start(m_pollIntervalSeconds * 1000);
+        scheduleDeviceTokenPoll();
         return;
     }
 
     const int status = httpStatus(reply);
     if (reply->error() != QNetworkReply::NoError || status < 200 || status >= 300) {
-        finishPendingAuth();
-        setStatus(apiErrorMessage(payload, QStringLiteral("Trakt authorization failed")));
-        emit errorOccurred(m_statusMessage);
+        if (isTerminalDeviceAuthError(error)) {
+            finishPendingAuth();
+            setStatus(apiErrorMessage(payload, QStringLiteral("Trakt authorization failed")));
+            emit errorOccurred(m_statusMessage);
+            return;
+        }
+
+        ++m_pollFailures;
+        setStatus(QStringLiteral("Waiting for Trakt approval (retrying token check)…"));
+        scheduleDeviceTokenPoll();
         return;
     }
 
@@ -241,6 +253,23 @@ void TraktClient::handleDeviceTokenReply(QNetworkReply *reply)
     finishPendingAuth();
     setStatus(QStringLiteral("Trakt connected"));
     fetchUserSettings();
+}
+
+void TraktClient::scheduleDeviceTokenPoll()
+{
+    if (m_deviceCode.isEmpty()) {
+        return;
+    }
+    const int backoffSeconds = std::min(m_pollFailures * 5, 30);
+    m_pollTimer.start((m_pollIntervalSeconds + backoffSeconds) * 1000);
+}
+
+bool TraktClient::isTerminalDeviceAuthError(const QString &error) const
+{
+    return error == QStringLiteral("access_denied")
+        || error == QStringLiteral("expired_token")
+        || error == QStringLiteral("invalid_client")
+        || error == QStringLiteral("invalid_grant");
 }
 
 void TraktClient::fetchUserSettings()
@@ -315,5 +344,6 @@ void TraktClient::finishPendingAuth()
     m_userCode.clear();
     m_verificationUrl.clear();
     m_deviceCodeExpiresAt = {};
+    m_pollFailures = 0;
     emit changed();
 }

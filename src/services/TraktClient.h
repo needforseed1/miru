@@ -45,6 +45,8 @@ private:
     void handleDeviceCodeReply(QNetworkReply *reply);
     void pollDeviceToken();
     void handleDeviceTokenReply(QNetworkReply *reply);
+    void scheduleDeviceTokenPoll();
+    bool isTerminalDeviceAuthError(const QString &error) const;
     void fetchUserSettings();
     void handleUserSettingsReply(QNetworkReply *reply);
     void applyTokenResponse(const QByteArray &payload);
@@ -67,5 +69,6 @@ private:
     QString m_verificationUrl;
     QDateTime m_deviceCodeExpiresAt;
     int m_pollIntervalSeconds = 5;
+    int m_pollFailures = 0;
     bool m_busy = false;
 };
