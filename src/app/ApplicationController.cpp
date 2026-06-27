@@ -33,6 +33,13 @@ QStringList stringListValue(const QVariant &value)
     return out;
 }
 
+bool shouldForwardPlaybackHeader(const QString &key, const QString &value)
+{
+    return !key.trimmed().isEmpty()
+        && !value.trimmed().isEmpty()
+        && key.compare(QStringLiteral("Range"), Qt::CaseInsensitive) != 0;
+}
+
 QString normalizedSearchText(QString text)
 {
     text = text.toCaseFolded();
@@ -719,8 +726,8 @@ void ApplicationController::prewarmStreamTail(const QString &url, const QVariant
     request.setRawHeader("Range", "bytes=-16777216");
     for (auto it = headers.constBegin(); it != headers.constEnd(); ++it) {
         const QString value = it.value().toString();
-        if (!value.isEmpty()) {
-            request.setRawHeader(it.key().toUtf8(), value.toUtf8());
+        if (shouldForwardPlaybackHeader(it.key(), value)) {
+            request.setRawHeader(it.key().trimmed().toUtf8(), value.trimmed().toUtf8());
         }
     }
 

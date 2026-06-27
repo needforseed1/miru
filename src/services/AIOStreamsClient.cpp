@@ -10,6 +10,15 @@
 
 #include <chrono>
 
+namespace {
+bool shouldForwardPlaybackHeader(const QString &key, const QString &value)
+{
+    return !key.trimmed().isEmpty()
+        && !value.trimmed().isEmpty()
+        && key.compare(QStringLiteral("Range"), Qt::CaseInsensitive) != 0;
+}
+} // namespace
+
 AIOStreamsClient::AIOStreamsClient(QObject *parent)
     : QObject(parent)
 {
@@ -155,7 +164,10 @@ QVariantMap AIOStreamsClient::normalizeStream(const QJsonObject &stream) const
         behaviorHints.value(QStringLiteral("proxyHeaders")).toObject()
                      .value(QStringLiteral("request")).toObject();
     for (auto it = requestHeaders.constBegin(); it != requestHeaders.constEnd(); ++it) {
-        headers.insert(it.key(), it.value().toString());
+        const QString value = it.value().toString();
+        if (shouldForwardPlaybackHeader(it.key(), value)) {
+            headers.insert(it.key().trimmed(), value.trimmed());
+        }
     }
 
     const QString combined = QStringLiteral("%1 %2 %3").arg(name, description, filename);

@@ -75,6 +75,13 @@ bool isAsahiLinux()
 #endif
     return false;
 }
+
+bool shouldForwardPlaybackHeader(const QString &key, const QString &value)
+{
+    return !key.trimmed().isEmpty()
+        && !value.trimmed().isEmpty()
+        && key.compare(QStringLiteral("Range"), Qt::CaseInsensitive) != 0;
+}
 } // namespace
 
 ExternalMpvPlayer::ExternalMpvPlayer(QObject *parent)
@@ -157,8 +164,9 @@ bool ExternalMpvPlayer::play(const QString &url, const QString &title,
     }
     for (auto it = headers.constBegin(); it != headers.constEnd(); ++it) {
         const QString value = it.value().toString();
-        if (!value.isEmpty()) {
-            args << QStringLiteral("--http-header-fields-append=%1: %2").arg(it.key(), value);
+        if (shouldForwardPlaybackHeader(it.key(), value)) {
+            args << QStringLiteral("--http-header-fields-append=%1: %2")
+                        .arg(it.key().trimmed(), value.trimmed());
         }
     }
 
