@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QGuiApplication>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -253,6 +254,13 @@ ApplicationController::ApplicationController(QObject *parent)
         setStatusMessage(message);
     });
 
+    connect(&m_trakt, &TraktClient::changed, this, [this]() {
+        emit traktChanged();
+    });
+    connect(&m_trakt, &TraktClient::errorOccurred, this, [this](const QString &message) {
+        setStatusMessage(message);
+    });
+
     connect(&m_subtitles, &SubtitlesClient::subtitlesReady, this, [this](const QVariantList &subtitles) {
         m_currentSubtitles = subtitles;
     });
@@ -489,6 +497,15 @@ bool ApplicationController::mpvGpuNext() const { return m_mpvGpuNext; }
 bool ApplicationController::mpvHdrHint() const { return m_mpvHdrHint; }
 QString ApplicationController::mpvExtraArgs() const { return m_mpvExtraArgs; }
 QString ApplicationController::playerMode() const { return m_playerMode; }
+QString ApplicationController::traktClientId() const { return m_trakt.clientId(); }
+QString ApplicationController::traktClientSecret() const { return m_trakt.clientSecret(); }
+QString ApplicationController::traktStatus() const { return m_trakt.statusMessage(); }
+QString ApplicationController::traktUserCode() const { return m_trakt.userCode(); }
+QString ApplicationController::traktVerificationUrl() const { return m_trakt.verificationUrl(); }
+QString ApplicationController::traktUsername() const { return m_trakt.username(); }
+bool ApplicationController::traktConnected() const { return m_trakt.connected(); }
+bool ApplicationController::traktAuthPending() const { return m_trakt.authPending(); }
+bool ApplicationController::traktBusy() const { return m_trakt.busy(); }
 bool ApplicationController::playbackActive() const { return m_playbackActive; }
 bool ApplicationController::playbackBuffering() const { return m_playbackBuffering; }
 bool ApplicationController::playbackEmbedded() const { return m_playbackEmbedded; }
@@ -933,6 +950,39 @@ void ApplicationController::setPlayerMode(const QString &mode)
     setStatusMessage(normalized == QStringLiteral("embedded")
                          ? QStringLiteral("Player mode set to Embedded")
                          : QStringLiteral("Player mode set to External"));
+}
+
+void ApplicationController::setTraktClientId(const QString &clientId)
+{
+    m_trakt.setClientId(clientId);
+}
+
+void ApplicationController::setTraktClientSecret(const QString &clientSecret)
+{
+    m_trakt.setClientSecret(clientSecret);
+}
+
+void ApplicationController::connectTrakt()
+{
+    m_trakt.startDeviceAuthorization();
+}
+
+void ApplicationController::cancelTraktAuth()
+{
+    m_trakt.cancelDeviceAuthorization();
+}
+
+void ApplicationController::disconnectTrakt()
+{
+    m_trakt.disconnectTrakt();
+}
+
+void ApplicationController::openTraktVerificationUrl()
+{
+    const QUrl url(m_trakt.verificationUrl());
+    if (url.isValid()) {
+        QDesktopServices::openUrl(url);
+    }
 }
 
 void ApplicationController::setLoading(bool loading)

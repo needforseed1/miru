@@ -10,6 +10,7 @@
 #include "../services/CinemetaClient.h"
 #include "../services/ImdbRatings.h"
 #include "../services/SubtitlesClient.h"
+#include "../services/TraktClient.h"
 #include "WatchHistory.h"
 
 class QNetworkReply;
@@ -35,6 +36,15 @@ class ApplicationController : public QObject
     Q_PROPERTY(bool mpvHdrHint READ mpvHdrHint WRITE setMpvHdrHint NOTIFY mpvHdrHintChanged)
     Q_PROPERTY(QString mpvExtraArgs READ mpvExtraArgs WRITE setMpvExtraArgs NOTIFY mpvExtraArgsChanged)
     Q_PROPERTY(QString playerMode READ playerMode WRITE setPlayerMode NOTIFY playerModeChanged)
+    Q_PROPERTY(QString traktClientId READ traktClientId WRITE setTraktClientId NOTIFY traktChanged)
+    Q_PROPERTY(QString traktClientSecret READ traktClientSecret WRITE setTraktClientSecret NOTIFY traktChanged)
+    Q_PROPERTY(QString traktStatus READ traktStatus NOTIFY traktChanged)
+    Q_PROPERTY(QString traktUserCode READ traktUserCode NOTIFY traktChanged)
+    Q_PROPERTY(QString traktVerificationUrl READ traktVerificationUrl NOTIFY traktChanged)
+    Q_PROPERTY(QString traktUsername READ traktUsername NOTIFY traktChanged)
+    Q_PROPERTY(bool traktConnected READ traktConnected NOTIFY traktChanged)
+    Q_PROPERTY(bool traktAuthPending READ traktAuthPending NOTIFY traktChanged)
+    Q_PROPERTY(bool traktBusy READ traktBusy NOTIFY traktChanged)
     Q_PROPERTY(bool playbackActive READ playbackActive NOTIFY playbackStateChanged)
     Q_PROPERTY(bool playbackBuffering READ playbackBuffering NOTIFY playbackStateChanged)
     Q_PROPERTY(bool playbackEmbedded READ playbackEmbedded NOTIFY playbackStateChanged)
@@ -66,6 +76,15 @@ public:
     bool mpvHdrHint() const;
     QString mpvExtraArgs() const;
     QString playerMode() const;
+    QString traktClientId() const;
+    QString traktClientSecret() const;
+    QString traktStatus() const;
+    QString traktUserCode() const;
+    QString traktVerificationUrl() const;
+    QString traktUsername() const;
+    bool traktConnected() const;
+    bool traktAuthPending() const;
+    bool traktBusy() const;
     bool playbackActive() const;
     bool playbackBuffering() const;
     bool playbackEmbedded() const;
@@ -102,6 +121,12 @@ public:
     void setMpvHdrHint(bool enabled);
     void setMpvExtraArgs(const QString &args);
     void setPlayerMode(const QString &mode);
+    void setTraktClientId(const QString &clientId);
+    void setTraktClientSecret(const QString &clientSecret);
+    Q_INVOKABLE void connectTrakt();
+    Q_INVOKABLE void cancelTraktAuth();
+    Q_INVOKABLE void disconnectTrakt();
+    Q_INVOKABLE void openTraktVerificationUrl();
 
 signals:
     void homeSectionsChanged();
@@ -121,6 +146,7 @@ signals:
     void mpvHdrHintChanged();
     void mpvExtraArgsChanged();
     void playerModeChanged();
+    void traktChanged();
     void playbackStateChanged();
     void playbackPositionChanged();
     void loadingChanged();
@@ -150,6 +176,7 @@ private:
     AIOStreamsClient m_aioStreams;
     SubtitlesClient m_subtitles;
     ImdbRatings m_imdbRatings;
+    TraktClient m_trakt;
     WatchHistory m_watchHistory;
     ExternalMpvPlayer m_player;
     QNetworkAccessManager m_streamPrewarm;

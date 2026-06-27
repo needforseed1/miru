@@ -750,6 +750,119 @@ ApplicationWindow {
                 }
 
                 SettingsCard {
+                    title: "Trakt"
+                    description: "Optional cross-device resume support. Create a Trakt API app, paste its client ID and client secret here, then connect your Trakt account. The app never asks for your Trakt password."
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Theme.s8
+                        spacing: Theme.s12
+
+                        SettingsField {
+                            id: traktClientIdField
+                            Layout.fillWidth: true
+                            text: appController.traktClientId
+                            placeholderText: "Trakt client ID"
+                            onAccepted: appController.traktClientId = text
+                        }
+                        AppButton {
+                            text: "Save ID"
+                            onClicked: appController.traktClientId = traktClientIdField.text
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.s12
+
+                        SettingsField {
+                            id: traktClientSecretField
+                            Layout.fillWidth: true
+                            text: appController.traktClientSecret
+                            placeholderText: "Trakt client secret"
+                            echoMode: TextInput.Password
+                            onAccepted: appController.traktClientSecret = text
+                        }
+                        AppButton {
+                            text: "Save secret"
+                            onClicked: appController.traktClientSecret = traktClientSecretField.text
+                        }
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: appController.traktStatus || (appController.traktConnected ? "Trakt connected" : "Trakt not connected")
+                        color: appController.traktConnected ? Theme.text : Theme.textDim
+                        font.pixelSize: Theme.fSmall
+                        wrapMode: Text.WordWrap
+                    }
+
+                    Rectangle {
+                        visible: appController.traktAuthPending
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: authDetails.implicitHeight + Theme.s16 * 2
+                        radius: Theme.rMd
+                        color: Theme.surfaceAlt
+                        border.width: 1
+                        border.color: Theme.line
+
+                        ColumnLayout {
+                            id: authDetails
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.margins: Theme.s16
+                            spacing: Theme.s8
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Open " + appController.traktVerificationUrl + " and enter:"
+                                color: Theme.textDim
+                                font.pixelSize: Theme.fSmall
+                                wrapMode: Text.WordWrap
+                            }
+                            Text {
+                                text: appController.traktUserCode
+                                color: Theme.text
+                                font.pixelSize: Theme.fH3
+                                font.bold: true
+                                font.letterSpacing: 2
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.s12
+
+                        AppButton {
+                            text: appController.traktConnected ? "Reconnect" : "Connect Trakt"
+                            variant: "primary"
+                            enabled: !appController.traktBusy
+                                     && appController.traktClientId.length > 0
+                                     && appController.traktClientSecret.length > 0
+                            onClicked: appController.connectTrakt()
+                        }
+                        AppButton {
+                            text: "Open Trakt"
+                            enabled: appController.traktAuthPending && appController.traktVerificationUrl.length > 0
+                            onClicked: appController.openTraktVerificationUrl()
+                        }
+                        AppButton {
+                            text: "Cancel"
+                            visible: appController.traktAuthPending
+                            onClicked: appController.cancelTraktAuth()
+                        }
+                        AppButton {
+                            text: "Disconnect"
+                            variant: "danger"
+                            enabled: appController.traktConnected
+                            onClicked: appController.disconnectTrakt()
+                        }
+                    }
+                }
+
+                SettingsCard {
                     title: "IMDb ratings"
                     description: "Real IMDb ratings for posters and episodes, built from IMDb's public dataset and cached locally. Refreshes automatically about once a week."
 

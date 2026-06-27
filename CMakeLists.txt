@@ -27,6 +27,8 @@ qt_add_executable(stremio-linux
     src/services/SubtitlesClient.h
     src/services/ImdbRatings.cpp
     src/services/ImdbRatings.h
+    src/services/TraktClient.cpp
+    src/services/TraktClient.h
     src/player/ExternalMpvPlayer.cpp
     src/player/ExternalMpvPlayer.h
     src/player/MpvVideoSurface.cpp
