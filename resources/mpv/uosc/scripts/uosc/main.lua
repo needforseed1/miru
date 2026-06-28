@@ -29,8 +29,10 @@ defaults = {
 	timeline_cache = true,
 	timeline_heatmap = 'overlay',
 
+	-- Miru plays one direct HTTP stream at a time; uosc's stream-quality selector
+	-- cannot switch releases, so hide it from the default controls.
 	controls =
-	'menu,gap,<video,audio>subtitles,<has_many_audio>audio,<has_many_video>video,<has_many_edition>editions,<stream>stream-quality,gap,space,<video,audio>speed,space,shuffle,loop-playlist,loop-file,gap,prev,items,next,gap,fullscreen',
+	'menu,gap,<video,audio>subtitles,<has_many_audio>audio,<has_many_video>video,<has_many_edition>editions,gap,space,<video,audio>speed,space,shuffle,loop-playlist,loop-file,gap,prev,items,next,gap,fullscreen',
 	controls_size = 32,
 	controls_margin = 8,
 	controls_spacing = 2,
@@ -304,7 +306,6 @@ function create_default_menu_items()
 	return {
 		{title = t('Subtitles'), value = 'script-binding uosc/subtitles'},
 		{title = t('Audio tracks'), value = 'script-binding uosc/audio'},
-		{title = t('Stream quality'), value = 'script-binding uosc/stream-quality'},
 		{title = t('Playlist'), value = 'script-binding uosc/items'},
 		{title = t('Chapters'), value = 'script-binding uosc/chapters'},
 		{
