@@ -107,6 +107,7 @@ defaults = {
 }
 options = table_copy(defaults)
 function handle_options(changed_options)
+	options.controls = remove_stream_quality_control(options.controls)
 	if changed_options.time_precision then
 		timestamp_zero_rep_clear_cache()
 	end
@@ -117,7 +118,19 @@ function handle_options(changed_options)
 	Elements:update_proximities()
 	request_render()
 end
+
+function remove_stream_quality_control(value)
+	if type(value) ~= 'string' then return value end
+
+	local controls = {}
+	for control in value:gmatch('[^,]+') do
+		if not control:match('stream%-quality') then controls[#controls + 1] = control end
+	end
+	return table.concat(controls, ',')
+end
+
 opt.read_options(options, 'uosc', handle_options)
+options.controls = remove_stream_quality_control(options.controls)
 -- Normalize values
 options.proximity_out = math.max(options.proximity_out, options.proximity_in + 1)
 if options.chapter_ranges:sub(1, 4) == '^op|' then options.chapter_ranges = defaults.chapter_ranges end

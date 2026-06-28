@@ -194,6 +194,7 @@ bool ExternalMpvPlayer::play(const QString &url, const QString &title,
         const QString uoscScript = bundledMpvResourcePath(QStringLiteral("uosc/scripts/uosc/main.lua"));
         if (!uoscScript.isEmpty()) {
             args << QStringLiteral("--osc=no");
+            args << QStringLiteral("--load-scripts=no");
             args << QStringLiteral("--script=%1").arg(uoscScript);
             const QString uoscFonts = bundledMpvResourcePath(QStringLiteral("uosc/fonts"));
             if (!uoscFonts.isEmpty()) {
