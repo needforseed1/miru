@@ -36,7 +36,7 @@ class ApplicationController : public QObject
     Q_PROPERTY(bool mpvHardwareDecoding READ mpvHardwareDecoding WRITE setMpvHardwareDecoding NOTIFY mpvHardwareDecodingChanged)
     Q_PROPERTY(bool mpvGpuNext READ mpvGpuNext WRITE setMpvGpuNext NOTIFY mpvGpuNextChanged)
     Q_PROPERTY(bool mpvHdrHint READ mpvHdrHint WRITE setMpvHdrHint NOTIFY mpvHdrHintChanged)
-    Q_PROPERTY(bool mpvUosc READ mpvUosc WRITE setMpvUosc NOTIFY mpvUoscChanged)
+    Q_PROPERTY(bool mpvModernz READ mpvModernz WRITE setMpvModernz NOTIFY mpvModernzChanged)
     Q_PROPERTY(bool mpvFullscreen READ mpvFullscreen WRITE setMpvFullscreen NOTIFY mpvFullscreenChanged)
     Q_PROPERTY(QString mpvExtraArgs READ mpvExtraArgs WRITE setMpvExtraArgs NOTIFY mpvExtraArgsChanged)
     Q_PROPERTY(QString playerMode READ playerMode WRITE setPlayerMode NOTIFY playerModeChanged)
@@ -79,7 +79,7 @@ public:
     bool mpvHardwareDecoding() const;
     bool mpvGpuNext() const;
     bool mpvHdrHint() const;
-    bool mpvUosc() const;
+    bool mpvModernz() const;
     bool mpvFullscreen() const;
     QString mpvExtraArgs() const;
     QString playerMode() const;
@@ -127,7 +127,7 @@ public:
     void setMpvHardwareDecoding(bool enabled);
     void setMpvGpuNext(bool enabled);
     void setMpvHdrHint(bool enabled);
-    void setMpvUosc(bool enabled);
+    void setMpvModernz(bool enabled);
     void setMpvFullscreen(bool enabled);
     void setMpvExtraArgs(const QString &args);
     void setPlayerMode(const QString &mode);
@@ -156,7 +156,7 @@ signals:
     void mpvHardwareDecodingChanged();
     void mpvGpuNextChanged();
     void mpvHdrHintChanged();
-    void mpvUoscChanged();
+    void mpvModernzChanged();
     void mpvFullscreenChanged();
     void mpvExtraArgsChanged();
     void playerModeChanged();
@@ -218,7 +218,7 @@ private:
     bool m_mpvHardwareDecoding = true;
     bool m_mpvGpuNext = false;
     bool m_mpvHdrHint = false;
-    bool m_mpvUosc = true;
+    bool m_mpvModernz = true;
     bool m_mpvFullscreen = true;
     QString m_mpvExtraArgs;
     QString m_playerMode = QStringLiteral("external");

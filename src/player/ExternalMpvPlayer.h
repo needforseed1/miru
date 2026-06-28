@@ -24,7 +24,7 @@ public:
                           bool enableHwdec = true,
                           bool enableGpuNext = false,
                           bool enableHdrHint = false,
-                          bool enableUosc = true,
+                          bool enableModernz = true,
                           bool startFullscreen = true,
                           const QStringList &extraArgs = {},
                           double startSeconds = 0.0,

@@ -114,7 +114,7 @@ bool ExternalMpvPlayer::play(const QString &url, const QString &title,
                                  const QVariantMap &headers, const QStringList &subtitleUrls,
                                  const QString &subtitleLanguage,
                                  bool enableHwdec, bool enableGpuNext, bool enableHdrHint,
-                                 bool enableUosc, bool startFullscreen,
+                                 bool enableModernz, bool startFullscreen,
                                  const QStringList &extraArgs, double startSeconds, double startPercent,
                                  qulonglong windowId)
 {
@@ -190,14 +190,15 @@ bool ExternalMpvPlayer::play(const QString &url, const QString &title,
     if (!title.trimmed().isEmpty()) {
         args << QStringLiteral("--force-media-title=%1").arg(title.trimmed());
     }
-    if (enableUosc) {
-        const QString uoscScript = bundledMpvResourcePath(QStringLiteral("uosc/scripts/uosc/main.lua"));
-        if (!uoscScript.isEmpty()) {
+    if (enableModernz) {
+        const QString modernzScript = bundledMpvResourcePath(QStringLiteral("modernz/modernz.lua"));
+        if (!modernzScript.isEmpty()) {
             args << QStringLiteral("--osc=no");
-            args << QStringLiteral("--script=%1").arg(uoscScript);
-            const QString uoscFonts = bundledMpvResourcePath(QStringLiteral("uosc/fonts"));
-            if (!uoscFonts.isEmpty()) {
-                args << QStringLiteral("--osd-fonts-dir=%1").arg(uoscFonts);
+            args << QStringLiteral("--script-opts=modernz-download_button=no");
+            args << QStringLiteral("--script=%1").arg(modernzScript);
+            const QString modernzFonts = bundledMpvResourcePath(QStringLiteral("modernz/fonts"));
+            if (!modernzFonts.isEmpty()) {
+                args << QStringLiteral("--osd-fonts-dir=%1").arg(modernzFonts);
             }
         }
     }

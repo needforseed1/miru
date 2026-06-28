@@ -168,7 +168,7 @@ ApplicationController::ApplicationController(QObject *parent)
     m_mpvHardwareDecoding = settings.value(QStringLiteral("mpv/hardwareDecoding"), true).toBool();
     m_mpvGpuNext = settings.value(QStringLiteral("mpv/gpuNext"), false).toBool();
     m_mpvHdrHint = settings.value(QStringLiteral("mpv/hdrHint"), false).toBool();
-    m_mpvUosc = settings.value(QStringLiteral("mpv/uosc"), true).toBool();
+    m_mpvModernz = settings.value(QStringLiteral("mpv/modernz"), true).toBool();
     m_mpvFullscreen = settings.value(QStringLiteral("mpv/fullscreen"), true).toBool();
     m_mpvExtraArgs = settings.value(QStringLiteral("mpv/extraArgs")).toString();
     m_playerMode = settings.value(QStringLiteral("mpv/playerMode"), QStringLiteral("external")).toString();
@@ -555,7 +555,7 @@ bool ApplicationController::showPosterRatings() const { return m_showPosterRatin
 bool ApplicationController::mpvHardwareDecoding() const { return m_mpvHardwareDecoding; }
 bool ApplicationController::mpvGpuNext() const { return m_mpvGpuNext; }
 bool ApplicationController::mpvHdrHint() const { return m_mpvHdrHint; }
-bool ApplicationController::mpvUosc() const { return m_mpvUosc; }
+bool ApplicationController::mpvModernz() const { return m_mpvModernz; }
 bool ApplicationController::mpvFullscreen() const { return m_mpvFullscreen; }
 QString ApplicationController::mpvExtraArgs() const { return m_mpvExtraArgs; }
 QString ApplicationController::playerMode() const { return m_playerMode; }
@@ -777,7 +777,7 @@ bool ApplicationController::startPlayback(const QString &url, const QString &tit
         const bool started = m_player.play(url, title, headers, subtitleUrls,
                                             m_subtitleLanguage,
                                             m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint,
-                                            m_mpvUosc, m_mpvFullscreen, extraArgs,
+                                            m_mpvModernz, m_mpvFullscreen, extraArgs,
                                             startSeconds, startPercent, 0);
         if (started) {
             setStatusMessage(QStringLiteral("Embedded mpv needs X11/XWayland; using external mpv"));
@@ -790,7 +790,7 @@ bool ApplicationController::startPlayback(const QString &url, const QString &tit
     if (m_player.play(url, title, headers, subtitleUrls,
                       m_subtitleLanguage,
                       m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint,
-                      m_mpvUosc, m_mpvFullscreen, extraArgs,
+                      m_mpvModernz, m_mpvFullscreen, extraArgs,
                       startSeconds, startPercent, windowId)) {
         return embedded;
     }
@@ -804,7 +804,7 @@ bool ApplicationController::startPlayback(const QString &url, const QString &tit
     m_player.play(url, title, headers, subtitleUrls,
                   m_subtitleLanguage,
                   m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint,
-                  m_mpvUosc, m_mpvFullscreen, extraArgs,
+                  m_mpvModernz, m_mpvFullscreen, extraArgs,
                   startSeconds, startPercent, 0);
     return false;
 }
@@ -1016,17 +1016,17 @@ void ApplicationController::setMpvHdrHint(bool enabled)
                              : QStringLiteral("mpv HDR/Vulkan hint disabled"));
 }
 
-void ApplicationController::setMpvUosc(bool enabled)
+void ApplicationController::setMpvModernz(bool enabled)
 {
-    if (m_mpvUosc == enabled) {
+    if (m_mpvModernz == enabled) {
         return;
     }
 
-    m_mpvUosc = enabled;
-    QSettings().setValue(QStringLiteral("mpv/uosc"), enabled);
-    emit mpvUoscChanged();
-    setStatusMessage(enabled ? QStringLiteral("uosc controls enabled")
-                             : QStringLiteral("uosc controls disabled"));
+    m_mpvModernz = enabled;
+    QSettings().setValue(QStringLiteral("mpv/modernz"), enabled);
+    emit mpvModernzChanged();
+    setStatusMessage(enabled ? QStringLiteral("ModernZ controls enabled")
+                             : QStringLiteral("ModernZ controls disabled"));
 }
 
 void ApplicationController::setMpvFullscreen(bool enabled)

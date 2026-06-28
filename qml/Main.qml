@@ -1004,9 +1004,9 @@ ApplicationWindow {
                     }
 
                     SettingsCheck {
-                        text: "Modern mpv controls (uosc)"
-                        checked: appController.mpvUosc
-                        onToggled: appController.mpvUosc = checked
+                        text: "ModernZ mpv controls"
+                        checked: appController.mpvModernz
+                        onToggled: appController.mpvModernz = checked
                     }
                     SettingsCheck {
                         text: "Start external mpv fullscreen"
