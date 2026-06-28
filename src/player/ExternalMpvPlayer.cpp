@@ -194,6 +194,7 @@ bool ExternalMpvPlayer::play(const QString &url, const QString &title,
         const QString modernzScript = bundledMpvResourcePath(QStringLiteral("modernz/modernz.lua"));
         if (!modernzScript.isEmpty()) {
             args << QStringLiteral("--osc=no");
+            args << QStringLiteral("--osd-bar=no");
             args << QStringLiteral("--script-opts=modernz-download_button=no");
             args << QStringLiteral("--script=%1").arg(modernzScript);
             const QString modernzFonts = bundledMpvResourcePath(QStringLiteral("modernz/fonts"));
