@@ -321,7 +321,7 @@ ApplicationWindow {
 
                     ListView {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 326
+                        Layout.preferredHeight: 226
                         orientation: ListView.Horizontal
                         spacing: Theme.s16
                         clip: true
@@ -329,6 +329,7 @@ ApplicationWindow {
                         model: appController.continueWatching
                         delegate: ResumeCard {
                             item: modelData
+                            landscape: true
                             onClicked: clickedItem => root.resumeItem(clickedItem)
                             onRemoveRequested: key => appController.removeContinueWatching(key)
                         }

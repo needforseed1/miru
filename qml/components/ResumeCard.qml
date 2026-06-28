@@ -6,13 +6,14 @@ Item {
     id: root
 
     property var item: ({})
+    property bool landscape: false
     signal clicked(var item)
     signal removeRequested(string key)
 
-    width: 190
-    height: 326
+    width: landscape ? 300 : 190
+    height: artworkHeight + 56
 
-    readonly property real posterHeight: width * 1.42
+    readonly property real artworkHeight: landscape ? width * 9 / 16 : width * 1.42
     readonly property real progress: item.duration > 0 ? Math.max(0, Math.min(1, item.position / item.duration))
                                                          : Math.max(0, Math.min(1, (item.progressPercent || 0) / 100))
     readonly property int minutesLeft: item.duration > item.position ? Math.max(1, Math.round((item.duration - item.position) / 60)) : 0
@@ -20,7 +21,9 @@ Item {
     readonly property string progressText: item.nextUp ? "Next up"
                                                        : item.duration > 0 ? root.minutesLeft + " min left"
                                                                          : Math.round(root.progress * 100) + "% watched"
-    readonly property string imageSource: item.thumbnail || item.episodeThumbnail || item.poster || ""
+    readonly property string imageSource: landscape
+                                         ? (item.thumbnail || item.episodeThumbnail || item.poster || "")
+                                         : (item.poster || item.thumbnail || item.episodeThumbnail || "")
 
     scale: hover.hovered ? 1.03 : 1.0
     Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutQuad } }
@@ -28,7 +31,7 @@ Item {
     Rectangle {
         id: posterFrame
         width: parent.width
-        height: root.posterHeight
+        height: root.artworkHeight
         radius: Theme.rLg
         color: Theme.surface
         border.color: hover.hovered ? Theme.accent : Theme.line
