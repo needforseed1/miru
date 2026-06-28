@@ -67,7 +67,16 @@ void CinemetaClient::setBaseUrl(const QString &url)
     }
     m_addonUrl = base;
     m_searchCatalogId.clear();
-    m_manifestReady = false;
+    if (m_addonUrl.isEmpty()) {
+        // Cinemeta's searchable movie/series catalogs are stable and named
+        // "top". Seed them immediately so a first search at cold start doesn't
+        // depend on the home manifest finishing first.
+        m_searchCatalogId.insert(QStringLiteral("movie"), QStringLiteral("top"));
+        m_searchCatalogId.insert(QStringLiteral("series"), QStringLiteral("top"));
+        m_manifestReady = true;
+    } else {
+        m_manifestReady = false;
+    }
     m_manifestLoading = false;
     m_pendingSearches.clear();
 }
