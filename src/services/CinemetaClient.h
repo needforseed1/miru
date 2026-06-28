@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QVariantList>
 #include <QVariantMap>
+#include <QVector>
 
 #include <functional>
 
@@ -39,7 +40,15 @@ signals:
     void errorOccurred(const QString &message);
 
 private:
-    void getJson(const QUrl &url, const std::function<void(const QJsonObject &)> &handler);
+    struct PendingSearch {
+        QString type;
+        QString query;
+    };
+
+    void getJson(const QUrl &url, const std::function<void(const QJsonObject &)> &handler,
+                 const std::function<void()> &errorHandler = {});
+    void drainPendingSearches();
+    void fallbackCatalogs();
     QVariantMap normalizeMeta(const QJsonObject &meta) const;
     QVariantList normalizeVideos(const QJsonArray &videos) const;
     QString activeBase() const { return m_addonUrl.isEmpty() ? m_baseUrl : m_addonUrl; }
@@ -48,4 +57,7 @@ private:
     QString m_baseUrl = QStringLiteral("https://v3-cinemeta.strem.io");
     QString m_addonUrl; // empty => use m_baseUrl
     QHash<QString, QString> m_searchCatalogId; // type -> catalog id for search
+    QVector<PendingSearch> m_pendingSearches;
+    bool m_manifestReady = false;
+    bool m_manifestLoading = false;
 };

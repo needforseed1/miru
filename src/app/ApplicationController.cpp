@@ -229,7 +229,12 @@ ApplicationController::ApplicationController(QObject *parent)
         }
         sortSearchResults(m_searchResults, m_searchQuery);
         emit searchResultsChanged();
-        setLoading(false);
+        if (m_searchRequestsPending > 0) {
+            --m_searchRequestsPending;
+        }
+        if (m_searchRequestsPending == 0) {
+            setLoading(false);
+        }
     });
 
     connect(&m_cinemeta, &CinemetaClient::metaReady, this, [this](const QVariantMap &meta) {
@@ -598,6 +603,7 @@ void ApplicationController::search(const QString &query)
 
     m_searchResults.clear();
     m_searchQuery = trimmed;
+    m_searchRequestsPending = 2;
     emit searchResultsChanged();
     setLoading(true);
     setStatusMessage(QStringLiteral("Searching"));
@@ -607,6 +613,8 @@ void ApplicationController::search(const QString &query)
 
 void ApplicationController::clearSearch()
 {
+    m_searchQuery.clear();
+    m_searchRequestsPending = 0;
     if (m_searchResults.isEmpty()) {
         return;
     }

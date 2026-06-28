@@ -233,4 +233,5 @@ private:
     bool m_loading = false;
     bool m_streamsLoading = false;
     int m_homeRequestsPending = 0;
+    int m_searchRequestsPending = 0;
 };

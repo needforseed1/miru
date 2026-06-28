@@ -66,10 +66,19 @@ void CinemetaClient::setBaseUrl(const QString &url)
         base.chop(1);
     }
     m_addonUrl = base;
+    m_searchCatalogId.clear();
+    m_manifestReady = false;
+    m_manifestLoading = false;
+    m_pendingSearches.clear();
 }
 
 void CinemetaClient::discoverCatalogs()
 {
+    if (m_manifestLoading) {
+        return;
+    }
+
+    m_manifestLoading = true;
     const QUrl url(QStringLiteral("%1/manifest.json").arg(activeBase()));
     getJson(url, [this](const QJsonObject &manifest) {
         QVariantList sections;
@@ -118,22 +127,16 @@ void CinemetaClient::discoverCatalogs()
         }
 
         if (sections.isEmpty()) {
-            // Fallback to a Cinemeta-style Popular pair.
-            for (const QString &type : {QStringLiteral("movie"), QStringLiteral("series")}) {
-                QVariantMap section;
-                section.insert(QStringLiteral("id"), QStringLiteral("top"));
-                section.insert(QStringLiteral("type"), type);
-                section.insert(QStringLiteral("title"),
-                               type == QStringLiteral("movie") ? QStringLiteral("Popular Movies")
-                                                               : QStringLiteral("Popular Shows"));
-                sections.append(section);
-                if (!m_searchCatalogId.contains(type)) {
-                    m_searchCatalogId.insert(type, QStringLiteral("top"));
-                }
-            }
+            fallbackCatalogs();
+            return;
         }
 
+        m_manifestLoading = false;
+        m_manifestReady = true;
         emit catalogsDiscovered(sections);
+        drainPendingSearches();
+    }, [this]() {
+        fallbackCatalogs();
     });
 }
 
@@ -147,6 +150,14 @@ void CinemetaClient::fetchMeta(const QString &type, const QString &id)
 
 void CinemetaClient::search(const QString &type, const QString &query)
 {
+    if (!m_manifestReady) {
+        m_pendingSearches.append({type, query});
+        if (!m_manifestLoading) {
+            discoverCatalogs();
+        }
+        return;
+    }
+
     const QString encodedQuery = QString::fromUtf8(QUrl::toPercentEncoding(query));
     const QString catalogId = m_searchCatalogId.value(type, QStringLiteral("top"));
     const QUrl url(QStringLiteral("%1/catalog/%2/%3/search=%4.json")
@@ -158,20 +169,26 @@ void CinemetaClient::search(const QString &type, const QString &query)
             items.append(normalizeMeta(value.toObject()));
         }
         emit searchReady(type, query, items);
+    }, [this, type, query]() {
+        emit searchReady(type, query, QVariantList{});
     });
 }
 
-void CinemetaClient::getJson(const QUrl &url, const std::function<void(const QJsonObject &)> &handler)
+void CinemetaClient::getJson(const QUrl &url, const std::function<void(const QJsonObject &)> &handler,
+                             const std::function<void()> &errorHandler)
 {
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("AIOStreamsLinux/0.1"));
 
     QNetworkReply *reply = m_network.get(request);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, handler]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, handler, errorHandler]() {
         reply->deleteLater();
 
         if (reply->error() != QNetworkReply::NoError) {
             emit errorOccurred(QStringLiteral("Network error: %1").arg(reply->errorString()));
+            if (errorHandler) {
+                errorHandler();
+            }
             return;
         }
 
@@ -179,11 +196,44 @@ void CinemetaClient::getJson(const QUrl &url, const std::function<void(const QJs
         const QJsonDocument document = QJsonDocument::fromJson(reply->readAll(), &parseError);
         if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
             emit errorOccurred(QStringLiteral("Invalid JSON from Cinemeta"));
+            if (errorHandler) {
+                errorHandler();
+            }
             return;
         }
 
         handler(document.object());
     });
+}
+
+void CinemetaClient::drainPendingSearches()
+{
+    const QVector<PendingSearch> searches = m_pendingSearches;
+    m_pendingSearches.clear();
+    for (const PendingSearch &searchRequest : searches) {
+        search(searchRequest.type, searchRequest.query);
+    }
+}
+
+void CinemetaClient::fallbackCatalogs()
+{
+    QVariantList sections;
+    m_searchCatalogId.clear();
+    for (const QString &type : {QStringLiteral("movie"), QStringLiteral("series")}) {
+        QVariantMap section;
+        section.insert(QStringLiteral("id"), QStringLiteral("top"));
+        section.insert(QStringLiteral("type"), type);
+        section.insert(QStringLiteral("title"),
+                       type == QStringLiteral("movie") ? QStringLiteral("Popular Movies")
+                                                       : QStringLiteral("Popular Shows"));
+        sections.append(section);
+        m_searchCatalogId.insert(type, QStringLiteral("top"));
+    }
+
+    m_manifestLoading = false;
+    m_manifestReady = true;
+    emit catalogsDiscovered(sections);
+    drainPendingSearches();
 }
 
 QVariantMap CinemetaClient::normalizeMeta(const QJsonObject &meta) const
