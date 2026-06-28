@@ -143,14 +143,15 @@ ColumnLayout {
                             asynchronous: true
                             visible: status === Image.Ready
                         }
-                        // play overlay
+                        // search overlay: clicking an episode loads releases,
+                        // playback only starts from a selected source.
                         Rectangle {
                             anchors.fill: parent
                             color: "#66000000"
                             visible: epHover.hovered || epDelegate.current
                             Text {
                                 anchors.centerIn: parent
-                                text: "▶"
+                                text: "⌕"
                                 color: "white"
                                 font.pixelSize: 20
                             }
