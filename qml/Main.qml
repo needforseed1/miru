@@ -1004,6 +1004,16 @@ ApplicationWindow {
                     }
 
                     SettingsCheck {
+                        text: "Modern mpv controls (uosc)"
+                        checked: appController.mpvUosc
+                        onToggled: appController.mpvUosc = checked
+                    }
+                    SettingsCheck {
+                        text: "Start external mpv fullscreen"
+                        checked: appController.mpvFullscreen
+                        onToggled: appController.mpvFullscreen = checked
+                    }
+                    SettingsCheck {
                         text: "Hardware decoding (--hwdec=auto-safe)"
                         checked: appController.mpvHardwareDecoding
                         onToggled: appController.mpvHardwareDecoding = checked

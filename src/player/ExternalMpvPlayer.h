@@ -23,11 +23,13 @@ public:
                           const QString &subtitleLanguage = {},
                           bool enableHwdec = true,
                           bool enableGpuNext = false,
-                           bool enableHdrHint = false,
-                           const QStringList &extraArgs = {},
-                           double startSeconds = 0.0,
-                           double startPercent = 0.0,
-                           qulonglong windowId = 0);
+                          bool enableHdrHint = false,
+                          bool enableUosc = true,
+                          bool startFullscreen = true,
+                          const QStringList &extraArgs = {},
+                          double startSeconds = 0.0,
+                          double startPercent = 0.0,
+                          qulonglong windowId = 0);
     Q_INVOKABLE void stop();
     Q_INVOKABLE void setPaused(bool paused);
     Q_INVOKABLE void seek(double seconds);

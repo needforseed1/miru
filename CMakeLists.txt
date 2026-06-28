@@ -41,6 +41,23 @@ qt_add_resources(stremio-linux "appresources"
         resources/Sterzeck_badge.json
 )
 
+set(MIRU_MPV_RESOURCES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/mpv")
+if(EXISTS "${MIRU_MPV_RESOURCES_DIR}")
+    if(APPLE)
+        set(MIRU_MPV_RESOURCES_OUTPUT "$<TARGET_BUNDLE_DIR:stremio-linux>/Contents/Resources/mpv")
+    else()
+        set(MIRU_MPV_RESOURCES_OUTPUT "$<TARGET_FILE_DIR:stremio-linux>/mpv")
+    endif()
+
+    add_custom_command(TARGET stremio-linux POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${MIRU_MPV_RESOURCES_DIR}"
+                "${MIRU_MPV_RESOURCES_OUTPUT}"
+        COMMENT "Copying bundled mpv resources"
+        VERBATIM
+    )
+endif()
+
 set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_qml_module(stremio-linux
@@ -80,3 +97,5 @@ install(TARGETS stremio-linux
     BUNDLE DESTINATION .
     RUNTIME DESTINATION bin
 )
+
+install(DIRECTORY resources/mpv DESTINATION share/stremio-linux)

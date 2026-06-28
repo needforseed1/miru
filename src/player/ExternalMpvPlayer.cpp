@@ -55,6 +55,27 @@ QString resolveMpvExecutable()
     return QStandardPaths::findExecutable(QStringLiteral("mpv"));
 }
 
+QString bundledMpvResourcePath(const QString &relativePath)
+{
+    const QDir appDir(QCoreApplication::applicationDirPath());
+    QStringList candidates;
+
+#if defined(Q_OS_MACOS)
+    candidates << appDir.absoluteFilePath(QStringLiteral("../Resources/mpv/%1").arg(relativePath));
+#else
+    candidates << appDir.absoluteFilePath(QStringLiteral("mpv/%1").arg(relativePath));
+    candidates << appDir.absoluteFilePath(QStringLiteral("../share/stremio-linux/mpv/%1").arg(relativePath));
+#endif
+
+    for (const QString &candidate : candidates) {
+        const QFileInfo info(candidate);
+        if (info.exists()) {
+            return info.absoluteFilePath();
+        }
+    }
+    return {};
+}
+
 bool isAsahiLinux()
 {
 #if defined(Q_OS_LINUX) && (defined(__aarch64__) || defined(__arm64__))
@@ -93,6 +114,7 @@ bool ExternalMpvPlayer::play(const QString &url, const QString &title,
                                  const QVariantMap &headers, const QStringList &subtitleUrls,
                                  const QString &subtitleLanguage,
                                  bool enableHwdec, bool enableGpuNext, bool enableHdrHint,
+                                 bool enableUosc, bool startFullscreen,
                                  const QStringList &extraArgs, double startSeconds, double startPercent,
                                  qulonglong windowId)
 {
@@ -116,6 +138,9 @@ bool ExternalMpvPlayer::play(const QString &url, const QString &title,
             .arg(QDateTime::currentMSecsSinceEpoch()));
     args << QStringLiteral("--input-ipc-server=%1").arg(socketPath);
     args << QStringLiteral("--save-position-on-quit=no");
+    if (startFullscreen && windowId == 0) {
+        args << QStringLiteral("--fullscreen=yes");
+    }
     if (windowId > 0) {
         args << QStringLiteral("--wid=%1").arg(windowId);
         args << QStringLiteral("--force-window=yes");
@@ -164,6 +189,17 @@ bool ExternalMpvPlayer::play(const QString &url, const QString &title,
     }
     if (!title.trimmed().isEmpty()) {
         args << QStringLiteral("--force-media-title=%1").arg(title.trimmed());
+    }
+    if (enableUosc) {
+        const QString uoscScript = bundledMpvResourcePath(QStringLiteral("uosc/scripts/uosc/main.lua"));
+        if (!uoscScript.isEmpty()) {
+            args << QStringLiteral("--osc=no");
+            args << QStringLiteral("--script=%1").arg(uoscScript);
+            const QString uoscFonts = bundledMpvResourcePath(QStringLiteral("uosc/fonts"));
+            if (!uoscFonts.isEmpty()) {
+                args << QStringLiteral("--osd-fonts-dir=%1").arg(uoscFonts);
+            }
+        }
     }
     m_preferredSubtitleLanguage = subtitleLanguage.trimmed();
     if (!m_preferredSubtitleLanguage.isEmpty() && m_preferredSubtitleLanguage != QStringLiteral("off")) {

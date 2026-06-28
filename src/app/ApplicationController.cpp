@@ -168,6 +168,8 @@ ApplicationController::ApplicationController(QObject *parent)
     m_mpvHardwareDecoding = settings.value(QStringLiteral("mpv/hardwareDecoding"), true).toBool();
     m_mpvGpuNext = settings.value(QStringLiteral("mpv/gpuNext"), false).toBool();
     m_mpvHdrHint = settings.value(QStringLiteral("mpv/hdrHint"), false).toBool();
+    m_mpvUosc = settings.value(QStringLiteral("mpv/uosc"), true).toBool();
+    m_mpvFullscreen = settings.value(QStringLiteral("mpv/fullscreen"), true).toBool();
     m_mpvExtraArgs = settings.value(QStringLiteral("mpv/extraArgs")).toString();
     m_playerMode = settings.value(QStringLiteral("mpv/playerMode"), QStringLiteral("external")).toString();
     if (m_playerMode != QStringLiteral("embedded")) {
@@ -548,6 +550,8 @@ bool ApplicationController::showPosterRatings() const { return m_showPosterRatin
 bool ApplicationController::mpvHardwareDecoding() const { return m_mpvHardwareDecoding; }
 bool ApplicationController::mpvGpuNext() const { return m_mpvGpuNext; }
 bool ApplicationController::mpvHdrHint() const { return m_mpvHdrHint; }
+bool ApplicationController::mpvUosc() const { return m_mpvUosc; }
+bool ApplicationController::mpvFullscreen() const { return m_mpvFullscreen; }
 QString ApplicationController::mpvExtraArgs() const { return m_mpvExtraArgs; }
 QString ApplicationController::playerMode() const { return m_playerMode; }
 QString ApplicationController::traktClientId() const { return m_trakt.clientId(); }
@@ -764,7 +768,8 @@ bool ApplicationController::startPlayback(const QString &url, const QString &tit
         setPlaybackState(false, false, title);
         const bool started = m_player.play(url, title, headers, subtitleUrls,
                                             m_subtitleLanguage,
-                                            m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint, extraArgs,
+                                            m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint,
+                                            m_mpvUosc, m_mpvFullscreen, extraArgs,
                                             startSeconds, startPercent, 0);
         if (started) {
             setStatusMessage(QStringLiteral("Embedded mpv needs X11/XWayland; using external mpv"));
@@ -776,7 +781,8 @@ bool ApplicationController::startPlayback(const QString &url, const QString &tit
 
     if (m_player.play(url, title, headers, subtitleUrls,
                       m_subtitleLanguage,
-                      m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint, extraArgs,
+                      m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint,
+                      m_mpvUosc, m_mpvFullscreen, extraArgs,
                       startSeconds, startPercent, windowId)) {
         return embedded;
     }
@@ -789,7 +795,8 @@ bool ApplicationController::startPlayback(const QString &url, const QString &tit
     setPlaybackState(false, false, title);
     m_player.play(url, title, headers, subtitleUrls,
                   m_subtitleLanguage,
-                  m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint, extraArgs,
+                  m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint,
+                  m_mpvUosc, m_mpvFullscreen, extraArgs,
                   startSeconds, startPercent, 0);
     return false;
 }
@@ -999,6 +1006,32 @@ void ApplicationController::setMpvHdrHint(bool enabled)
     emit mpvHdrHintChanged();
     setStatusMessage(enabled ? QStringLiteral("mpv HDR/Vulkan hint enabled")
                              : QStringLiteral("mpv HDR/Vulkan hint disabled"));
+}
+
+void ApplicationController::setMpvUosc(bool enabled)
+{
+    if (m_mpvUosc == enabled) {
+        return;
+    }
+
+    m_mpvUosc = enabled;
+    QSettings().setValue(QStringLiteral("mpv/uosc"), enabled);
+    emit mpvUoscChanged();
+    setStatusMessage(enabled ? QStringLiteral("uosc controls enabled")
+                             : QStringLiteral("uosc controls disabled"));
+}
+
+void ApplicationController::setMpvFullscreen(bool enabled)
+{
+    if (m_mpvFullscreen == enabled) {
+        return;
+    }
+
+    m_mpvFullscreen = enabled;
+    QSettings().setValue(QStringLiteral("mpv/fullscreen"), enabled);
+    emit mpvFullscreenChanged();
+    setStatusMessage(enabled ? QStringLiteral("External mpv starts fullscreen")
+                             : QStringLiteral("External mpv starts windowed"));
 }
 
 void ApplicationController::setMpvExtraArgs(const QString &args)
