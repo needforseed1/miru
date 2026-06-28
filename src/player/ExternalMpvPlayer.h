@@ -20,6 +20,7 @@ public:
     Q_INVOKABLE bool play(const QString &url, const QString &title,
                           const QVariantMap &headers = {},
                           const QStringList &subtitleUrls = {},
+                          const QString &subtitleLanguage = {},
                           bool enableHwdec = true,
                           bool enableGpuNext = false,
                            bool enableHdrHint = false,
@@ -46,6 +47,7 @@ private:
     void retryConnect();
     void handleReadyRead();
     bool sendCommand(const QJsonArray &command);
+    void selectPreferredSubtitle(const QJsonArray &tracks);
     void emitProgressIfDue(bool force = false);
     void finishPlayback();
 
@@ -54,6 +56,7 @@ private:
     QByteArray m_readBuffer;
     QString m_socketPath;
     QStringList m_pendingSubtitles; // added via IPC after start, off the critical path
+    QString m_preferredSubtitleLanguage;
     int m_connectAttempts = 0;
     int m_generation = 0;
     double m_lastPosition = 0.0;
@@ -61,5 +64,6 @@ private:
     bool m_paused = false;
     bool m_finishEmitted = false;
     bool m_playingEmitted = false;
+    bool m_subtitleSelected = false;
     QElapsedTimer m_progressTimer;
 };

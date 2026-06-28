@@ -763,6 +763,7 @@ bool ApplicationController::startPlayback(const QString &url, const QString &tit
     if (embedded && QGuiApplication::platformName() != QStringLiteral("xcb")) {
         setPlaybackState(false, false, title);
         const bool started = m_player.play(url, title, headers, subtitleUrls,
+                                            m_subtitleLanguage,
                                             m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint, extraArgs,
                                             startSeconds, startPercent, 0);
         if (started) {
@@ -774,6 +775,7 @@ bool ApplicationController::startPlayback(const QString &url, const QString &tit
     setPlaybackState(false, embedded, title);
 
     if (m_player.play(url, title, headers, subtitleUrls,
+                      m_subtitleLanguage,
                       m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint, extraArgs,
                       startSeconds, startPercent, windowId)) {
         return embedded;
@@ -786,6 +788,7 @@ bool ApplicationController::startPlayback(const QString &url, const QString &tit
     setStatusMessage(QStringLiteral("Embedded mpv failed; falling back to external mpv"));
     setPlaybackState(false, false, title);
     m_player.play(url, title, headers, subtitleUrls,
+                  m_subtitleLanguage,
                   m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint, extraArgs,
                   startSeconds, startPercent, 0);
     return false;

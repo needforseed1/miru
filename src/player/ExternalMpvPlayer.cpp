@@ -91,6 +91,7 @@ ExternalMpvPlayer::ExternalMpvPlayer(QObject *parent)
 
 bool ExternalMpvPlayer::play(const QString &url, const QString &title,
                                  const QVariantMap &headers, const QStringList &subtitleUrls,
+                                 const QString &subtitleLanguage,
                                  bool enableHwdec, bool enableGpuNext, bool enableHdrHint,
                                  const QStringList &extraArgs, double startSeconds, double startPercent,
                                  qulonglong windowId)
@@ -163,6 +164,10 @@ bool ExternalMpvPlayer::play(const QString &url, const QString &title,
     }
     if (!title.trimmed().isEmpty()) {
         args << QStringLiteral("--force-media-title=%1").arg(title.trimmed());
+    }
+    m_preferredSubtitleLanguage = subtitleLanguage.trimmed();
+    if (!m_preferredSubtitleLanguage.isEmpty() && m_preferredSubtitleLanguage != QStringLiteral("off")) {
+        args << QStringLiteral("--slang=%1").arg(m_preferredSubtitleLanguage);
     }
     for (auto it = headers.constBegin(); it != headers.constEnd(); ++it) {
         const QString value = it.value().toString();
@@ -262,12 +267,14 @@ void ExternalMpvPlayer::resetWatcher(bool emitFinished)
     m_readBuffer.clear();
     m_socketPath.clear();
     m_pendingSubtitles.clear();
+    m_preferredSubtitleLanguage.clear();
     m_connectAttempts = 0;
     m_lastPosition = 0.0;
     m_lastDuration = 0.0;
     m_paused = false;
     m_finishEmitted = false;
     m_playingEmitted = false;
+    m_subtitleSelected = false;
     m_progressTimer.invalidate();
 }
 
@@ -302,12 +309,17 @@ void ExternalMpvPlayer::retryConnect()
         m_socket->write("{\"command\":[\"observe_property\",2,\"duration\"]}\n");
         m_socket->write("{\"command\":[\"observe_property\",3,\"pause\"]}\n");
         m_socket->write("{\"command\":[\"observe_property\",4,\"eof-reached\"]}\n");
+        m_socket->write("{\"command\":[\"observe_property\",5,\"track-list\"]}\n");
 
-        // Add external subtitles now, off the first-frame path. The first is
-        // selected; any extras are loaded but not auto-selected.
+        // Add external subtitles now, off the first-frame path. mpv receives
+        // the configured language, then track-list observation below selects
+        // the matching external track once mpv exposes it.
         for (int i = 0; i < m_pendingSubtitles.size(); ++i) {
             const QString flag = (i == 0) ? QStringLiteral("select") : QStringLiteral("auto");
-            sendCommand(QJsonArray{QStringLiteral("sub-add"), m_pendingSubtitles.at(i), flag});
+            const QString title = m_preferredSubtitleLanguage.isEmpty()
+                ? QStringLiteral("External subtitle")
+                : QStringLiteral("External %1").arg(m_preferredSubtitleLanguage);
+            sendCommand(QJsonArray{QStringLiteral("sub-add"), m_pendingSubtitles.at(i), flag, title, m_preferredSubtitleLanguage});
         }
         m_pendingSubtitles.clear();
         m_socket->flush();
@@ -379,10 +391,49 @@ void ExternalMpvPlayer::handleReadyRead()
                 }
             } else if (id == 4 && data.isBool() && data.toBool()) {
                 finishPlayback();
+            } else if (id == 5 && data.isArray()) {
+                selectPreferredSubtitle(data.toArray());
             }
         }
 
         newline = m_readBuffer.indexOf('\n');
+    }
+}
+
+void ExternalMpvPlayer::selectPreferredSubtitle(const QJsonArray &tracks)
+{
+    if (m_subtitleSelected || m_preferredSubtitleLanguage.isEmpty()
+        || m_preferredSubtitleLanguage.compare(QStringLiteral("off"), Qt::CaseInsensitive) == 0) {
+        return;
+    }
+
+    int fallbackExternalSub = -1;
+    for (const QJsonValue &value : tracks) {
+        const QJsonObject track = value.toObject();
+        if (track.value(QStringLiteral("type")).toString() != QStringLiteral("sub")) {
+            continue;
+        }
+        const int id = track.value(QStringLiteral("id")).toInt(-1);
+        if (id < 0) {
+            continue;
+        }
+        const bool external = track.value(QStringLiteral("external")).toBool();
+        if (!external) {
+            continue;
+        }
+        if (fallbackExternalSub < 0) {
+            fallbackExternalSub = id;
+        }
+        if (track.value(QStringLiteral("lang")).toString().compare(m_preferredSubtitleLanguage, Qt::CaseInsensitive) == 0) {
+            sendCommand(QJsonArray{QStringLiteral("set_property"), QStringLiteral("sid"), id});
+            m_subtitleSelected = true;
+            return;
+        }
+    }
+
+    if (fallbackExternalSub >= 0) {
+        sendCommand(QJsonArray{QStringLiteral("set_property"), QStringLiteral("sid"), fallbackExternalSub});
+        m_subtitleSelected = true;
     }
 }
 
