@@ -16,7 +16,7 @@ public:
     void fetchSubtitles(const QString &type, const QString &id);
 
 signals:
-    void subtitlesReady(const QVariantList &subtitles);
+    void subtitlesReady(const QString &type, const QString &id, const QVariantList &subtitles);
     void errorOccurred(const QString &message);
 
 private:

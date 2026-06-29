@@ -25,7 +25,7 @@ void SubtitlesClient::fetchSubtitles(const QString &type, const QString &id)
     request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("AIOStreamsLinux/0.1"));
 
     QNetworkReply *reply = m_network.get(request);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, type, id]() {
         reply->deleteLater();
 
         if (reply->error() != QNetworkReply::NoError) {
@@ -54,6 +54,6 @@ void SubtitlesClient::fetchSubtitles(const QString &type, const QString &id)
             subtitles.append(item);
         }
 
-        emit subtitlesReady(subtitles);
+        emit subtitlesReady(type, id, subtitles);
     });
 }

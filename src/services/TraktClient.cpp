@@ -492,6 +492,7 @@ void TraktClient::clearTokens()
     m_playbackEpisodesPending = false;
     m_watchedShowsPending = false;
     m_showProgressPending = 0;
+    ++m_refreshGeneration;
     m_activityTimer.stop();
     emit changed();
 }
@@ -617,15 +618,20 @@ void TraktClient::fetchPlaybackProgress()
     m_playbackEpisodesPending = true;
     m_watchedShowsPending = true;
     m_showProgressPending = 0;
+    const int generation = ++m_refreshGeneration;
     m_pendingPlaybackMovies.clear();
     m_pendingPlaybackEpisodes.clear();
     m_pendingNextUpShows.clear();
     getAuthorized(QStringLiteral("/sync/playback/movies"),
-                  [this](QNetworkReply *reply) { handlePlaybackProgressReply(QStringLiteral("movie"), reply); });
+                  [this, generation](QNetworkReply *reply) {
+        handlePlaybackProgressReply(generation, QStringLiteral("movie"), reply);
+    });
     getAuthorized(QStringLiteral("/sync/playback/episodes"),
-                  [this](QNetworkReply *reply) { handlePlaybackProgressReply(QStringLiteral("episode"), reply); });
+                  [this, generation](QNetworkReply *reply) {
+        handlePlaybackProgressReply(generation, QStringLiteral("episode"), reply);
+    });
     getAuthorized(QStringLiteral("/sync/history/episodes?limit=%1").arg(kMaxNextUpShows * 4),
-                  [this](QNetworkReply *reply) { handleWatchedShowsReply(reply); });
+                  [this, generation](QNetworkReply *reply) { handleWatchedShowsReply(generation, reply); });
 }
 
 void TraktClient::sendPlaybackProgress(const QVariantMap &media, double position, double duration)
@@ -914,8 +920,12 @@ void TraktClient::handleUserSettingsReply(QNetworkReply *reply)
     emit changed();
 }
 
-void TraktClient::handlePlaybackProgressReply(const QString &kind, QNetworkReply *reply)
+void TraktClient::handlePlaybackProgressReply(int generation, const QString &kind, QNetworkReply *reply)
 {
+    if (generation != m_refreshGeneration) {
+        return;
+    }
+
     const QByteArray payload = reply->readAll();
     const int status = httpStatus(reply);
     if (reply->error() != QNetworkReply::NoError || status < 200 || status >= 300) {
@@ -926,7 +936,7 @@ void TraktClient::handlePlaybackProgressReply(const QString &kind, QNetworkReply
         } else {
             m_playbackEpisodesPending = false;
         }
-        publishPausedPlaybackIfReady();
+        publishPausedPlaybackIfReady(generation);
         return;
     }
 
@@ -937,25 +947,29 @@ void TraktClient::handlePlaybackProgressReply(const QString &kind, QNetworkReply
         m_pendingPlaybackEpisodes = playbackItemsFromJson(payload, kind);
         m_playbackEpisodesPending = false;
     }
-    publishPausedPlaybackIfReady();
+    publishPausedPlaybackIfReady(generation);
 }
 
-void TraktClient::handleWatchedShowsReply(QNetworkReply *reply)
+void TraktClient::handleWatchedShowsReply(int generation, QNetworkReply *reply)
 {
+    if (generation != m_refreshGeneration) {
+        return;
+    }
+
     const QByteArray payload = reply->readAll();
     const int status = httpStatus(reply);
     m_watchedShowsPending = false;
     if (reply->error() != QNetworkReply::NoError || status < 200 || status >= 300) {
         setStatus(apiErrorMessage(payload, QStringLiteral("Failed to load Trakt watched history")));
         emit errorOccurred(m_statusMessage);
-        publishNextUpIfReady();
+        publishNextUpIfReady(generation);
         return;
     }
 
     const QVariantList shows = historyShowsFromJson(payload);
     m_showProgressPending = shows.size();
     if (m_showProgressPending == 0) {
-        publishNextUpIfReady();
+        publishNextUpIfReady(generation);
         return;
     }
 
@@ -963,12 +977,18 @@ void TraktClient::handleWatchedShowsReply(QNetworkReply *reply)
         const QVariantMap show = entry.toMap();
         const QString encoded = QString::fromUtf8(QUrl::toPercentEncoding(show.value(QStringLiteral("pathId")).toString()));
         getAuthorized(QStringLiteral("/shows/%1/progress/watched?hidden=false&specials=false&count_specials=false").arg(encoded),
-                      [this, show](QNetworkReply *reply) { handleShowProgressReply(show, reply); });
+                      [this, generation, show](QNetworkReply *reply) {
+            handleShowProgressReply(generation, show, reply);
+        });
     }
 }
 
-void TraktClient::handleShowProgressReply(const QVariantMap &show, QNetworkReply *reply)
+void TraktClient::handleShowProgressReply(int generation, const QVariantMap &show, QNetworkReply *reply)
 {
+    if (generation != m_refreshGeneration) {
+        return;
+    }
+
     const QByteArray payload = reply->readAll();
     const int status = httpStatus(reply);
     if (reply->error() == QNetworkReply::NoError && status >= 200 && status < 300) {
@@ -981,11 +1001,14 @@ void TraktClient::handleShowProgressReply(const QVariantMap &show, QNetworkReply
     if (m_showProgressPending > 0) {
         --m_showProgressPending;
     }
-    publishNextUpIfReady();
+    publishNextUpIfReady(generation);
 }
 
-void TraktClient::publishPausedPlaybackIfReady()
+void TraktClient::publishPausedPlaybackIfReady(int generation)
 {
+    if (generation != m_refreshGeneration) {
+        return;
+    }
     if (m_playbackMoviesPending || m_playbackEpisodesPending) {
         return;
     }
@@ -1000,11 +1023,14 @@ void TraktClient::publishPausedPlaybackIfReady()
 
     m_playbackProgress = items;
     emit changed();
-    publishNextUpIfReady();
+    publishNextUpIfReady(generation);
 }
 
-void TraktClient::publishNextUpIfReady()
+void TraktClient::publishNextUpIfReady(int generation)
 {
+    if (generation != m_refreshGeneration) {
+        return;
+    }
     if (m_watchedShowsPending || m_showProgressPending > 0) {
         return;
     }

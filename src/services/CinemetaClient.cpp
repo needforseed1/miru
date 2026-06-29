@@ -152,8 +152,8 @@ void CinemetaClient::discoverCatalogs()
 void CinemetaClient::fetchMeta(const QString &type, const QString &id)
 {
     const QUrl url(QStringLiteral("%1/meta/%2/%3.json").arg(activeBase(), type, id));
-    getJson(url, [this](const QJsonObject &object) {
-        emit metaReady(normalizeMeta(object.value(QStringLiteral("meta")).toObject()));
+    getJson(url, [this, type, id](const QJsonObject &object) {
+        emit metaReady(type, id, normalizeMeta(object.value(QStringLiteral("meta")).toObject()));
     });
 }
 

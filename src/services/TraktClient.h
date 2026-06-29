@@ -65,11 +65,11 @@ private:
     void handleUserSettingsReply(QNetworkReply *reply);
     void pollTraktActivities();
     void handleActivitiesReply(QNetworkReply *reply);
-    void handlePlaybackProgressReply(const QString &kind, QNetworkReply *reply);
-    void handleWatchedShowsReply(QNetworkReply *reply);
-    void handleShowProgressReply(const QVariantMap &show, QNetworkReply *reply);
-    void publishPausedPlaybackIfReady();
-    void publishNextUpIfReady();
+    void handlePlaybackProgressReply(int generation, const QString &kind, QNetworkReply *reply);
+    void handleWatchedShowsReply(int generation, QNetworkReply *reply);
+    void handleShowProgressReply(int generation, const QVariantMap &show, QNetworkReply *reply);
+    void publishPausedPlaybackIfReady(int generation);
+    void publishNextUpIfReady(int generation);
     void applyCachedMetadata(QVariantList &items) const;
     void applyTokenResponse(const QByteArray &payload);
     void setStatus(const QString &message);
@@ -98,6 +98,7 @@ private:
     bool m_playbackEpisodesPending = false;
     bool m_watchedShowsPending = false;
     int m_showProgressPending = 0;
+    int m_refreshGeneration = 0;
     QString m_deviceCode;
     QString m_userCode;
     QString m_verificationUrl;

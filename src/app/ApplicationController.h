@@ -169,7 +169,8 @@ signals:
 private:
     bool playStreamWithWindow(int index, qulonglong windowId);
     bool resumeContinueWatchingWithWindow(const QString &key, qulonglong windowId);
-    bool startPlayback(const QString &url, const QString &title, const QVariantMap &headers,
+    bool startPlayback(const QVariantMap &playbackMedia,
+                       const QString &url, const QString &title, const QVariantMap &headers,
                        const QStringList &subtitleUrls, double startSeconds, double startPercent,
                        qulonglong windowId);
     void setPlaybackState(bool active, bool embedded, const QString &title = QString());
@@ -206,6 +207,10 @@ private:
     QVariantList m_currentSubtitles;
     QVariantMap m_streamMedia;
     QVariantMap m_currentPlaybackMedia;
+    QString m_activeMetaType;
+    QString m_activeMetaId;
+    QString m_activeSubtitleType;
+    QString m_activeSubtitleId;
     QSet<QString> m_resumeMetadataRequests;
     QString m_pendingRemoteResumeType;
     QString m_pendingRemoteResumeId;

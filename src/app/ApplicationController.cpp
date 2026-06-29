@@ -237,7 +237,11 @@ ApplicationController::ApplicationController(QObject *parent)
         }
     });
 
-    connect(&m_cinemeta, &CinemetaClient::metaReady, this, [this](const QVariantMap &meta) {
+    connect(&m_cinemeta, &CinemetaClient::metaReady, this,
+            [this](const QString &type, const QString &id, const QVariantMap &meta) {
+        if (type != m_activeMetaType || id != m_activeMetaId) {
+            return;
+        }
         m_selectedMeta = meta;
         enrichEpisodeRatings();
         emit selectedMetaChanged();
@@ -273,7 +277,8 @@ ApplicationController::ApplicationController(QObject *parent)
         setStatusMessage(message);
     });
 
-    connect(&m_resumeMetadata, &CinemetaClient::metaReady, this, [this](const QVariantMap &meta) {
+    connect(&m_resumeMetadata, &CinemetaClient::metaReady, this,
+            [this](const QString &, const QString &, const QVariantMap &meta) {
         m_trakt.applyMetadata(meta);
     });
     connect(&m_resumeMetadata, &CinemetaClient::errorOccurred, this, [](const QString &) {
@@ -281,7 +286,11 @@ ApplicationController::ApplicationController(QObject *parent)
         // surface through the main metadata client.
     });
 
-    connect(&m_subtitles, &SubtitlesClient::subtitlesReady, this, [this](const QVariantList &subtitles) {
+    connect(&m_subtitles, &SubtitlesClient::subtitlesReady, this,
+            [this](const QString &type, const QString &id, const QVariantList &subtitles) {
+        if (type != m_activeSubtitleType || id != m_activeSubtitleId) {
+            return;
+        }
         m_currentSubtitles = subtitles;
     });
 
@@ -631,6 +640,8 @@ void ApplicationController::loadMeta(const QString &type, const QString &id)
 
     setLoading(true);
     setStatusMessage(QStringLiteral("Loading details"));
+    m_activeMetaType = type;
+    m_activeMetaId = id;
     m_cinemeta.fetchMeta(type, id);
 }
 
@@ -662,7 +673,11 @@ void ApplicationController::loadStreams(const QString &type, const QString &id)
     // Prefetch subtitles for this title/episode so they are ready by the
     // time a release is played (added to mpv as external --sub-file).
     m_currentSubtitles.clear();
+    m_activeSubtitleType.clear();
+    m_activeSubtitleId.clear();
     if (m_subtitleLanguage != QStringLiteral("off")) {
+        m_activeSubtitleType = type;
+        m_activeSubtitleId = id;
         m_subtitles.fetchSubtitles(type, id);
     }
 }
@@ -670,6 +685,8 @@ void ApplicationController::loadStreams(const QString &type, const QString &id)
 void ApplicationController::clearStreams()
 {
     m_currentSubtitles.clear();
+    m_activeSubtitleType.clear();
+    m_activeSubtitleId.clear();
     m_streamMedia.clear();
     setStreamsLoading(false);
     if (m_streams.isEmpty()) {
@@ -714,11 +731,11 @@ bool ApplicationController::playStreamWithWindow(int index, qulonglong windowId)
         }
     }
 
-    m_currentPlaybackMedia = currentPlaybackMedia(stream);
+    QVariantMap playbackMedia = currentPlaybackMedia(stream);
     if (!subtitleUrls.isEmpty()) {
-        m_currentPlaybackMedia.insert(QStringLiteral("subtitleUrls"), subtitleUrls);
+        playbackMedia.insert(QStringLiteral("subtitleUrls"), subtitleUrls);
     }
-    double startSeconds = m_watchHistory.positionFor(m_currentPlaybackMedia);
+    double startSeconds = m_watchHistory.positionFor(playbackMedia);
 
     double startPercent = 0.0;
     if (m_pendingRemoteResumeType == m_streamMedia.value(QStringLiteral("type")).toString()
@@ -730,7 +747,7 @@ bool ApplicationController::playStreamWithWindow(int index, qulonglong windowId)
         m_pendingRemoteResumePercent = 0.0;
     }
 
-    return startPlayback(url, title, headers, subtitleUrls, startSeconds, startPercent, windowId);
+    return startPlayback(playbackMedia, url, title, headers, subtitleUrls, startSeconds, startPercent, windowId);
 }
 
 void ApplicationController::resumeContinueWatching(const QString &key)
@@ -757,11 +774,11 @@ bool ApplicationController::resumeContinueWatchingWithWindow(const QString &key,
     const QVariantMap headers = stream.value(QStringLiteral("headers")).toMap();
     const QStringList subtitleUrls = stringListValue(entry.value(QStringLiteral("subtitleUrls")));
 
-    m_currentPlaybackMedia = entry;
-    return startPlayback(url, title, headers, subtitleUrls, m_watchHistory.positionFor(entry), 0.0, windowId);
+    return startPlayback(entry, url, title, headers, subtitleUrls, m_watchHistory.positionFor(entry), 0.0, windowId);
 }
 
-bool ApplicationController::startPlayback(const QString &url, const QString &title, const QVariantMap &headers,
+bool ApplicationController::startPlayback(const QVariantMap &playbackMedia,
+                                          const QString &url, const QString &title, const QVariantMap &headers,
                                           const QStringList &subtitleUrls, double startSeconds, double startPercent,
                                           qulonglong windowId)
 {
@@ -780,6 +797,7 @@ bool ApplicationController::startPlayback(const QString &url, const QString &tit
                                             m_mpvModernz, m_mpvFullscreen, extraArgs,
                                             startSeconds, startPercent, 0);
         if (started) {
+            m_currentPlaybackMedia = playbackMedia;
             setStatusMessage(QStringLiteral("Embedded mpv needs X11/XWayland; using external mpv"));
         }
         return false;
@@ -792,6 +810,7 @@ bool ApplicationController::startPlayback(const QString &url, const QString &tit
                       m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint,
                       m_mpvModernz, m_mpvFullscreen, extraArgs,
                       startSeconds, startPercent, windowId)) {
+        m_currentPlaybackMedia = playbackMedia;
         return embedded;
     }
 
@@ -801,11 +820,13 @@ bool ApplicationController::startPlayback(const QString &url, const QString &tit
 
     setStatusMessage(QStringLiteral("Embedded mpv failed; falling back to external mpv"));
     setPlaybackState(false, false, title);
-    m_player.play(url, title, headers, subtitleUrls,
-                  m_subtitleLanguage,
-                  m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint,
-                  m_mpvModernz, m_mpvFullscreen, extraArgs,
-                  startSeconds, startPercent, 0);
+    if (m_player.play(url, title, headers, subtitleUrls,
+                      m_subtitleLanguage,
+                      m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint,
+                      m_mpvModernz, m_mpvFullscreen, extraArgs,
+                      startSeconds, startPercent, 0)) {
+        m_currentPlaybackMedia = playbackMedia;
+    }
     return false;
 }
 

@@ -375,6 +375,8 @@ void ExternalMpvPlayer::retryConnect()
                 m_socket = nullptr;
             }
             m_socketPath.clear();
+            emit errorOccurred(QStringLiteral("mpv started, but its control socket did not become available"));
+            finishPlayback();
             return;
         }
         QTimer::singleShot(100, this, [this, generation]() {
