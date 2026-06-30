@@ -183,14 +183,6 @@ ApplicationController::ApplicationController(QObject *parent)
     m_mpvFullscreen = settings.value(QStringLiteral("mpv/fullscreen"), true).toBool();
     m_mpvExtraArgs = settings.value(QStringLiteral("mpv/extraArgs")).toString();
 
-    m_streamPrewarmStatsTimer.setInterval(250);
-    connect(&m_streamPrewarmStatsTimer, &QTimer::timeout, this, [this]() {
-        if (m_streamPrewarmReply && !m_streamPrewarmLaunchStarted) {
-            const QString state = m_streamPrewarmStats.value(QStringLiteral("state")).toString();
-            updateStreamPrewarmStats(m_streamPrewarmReply, state.isEmpty() ? QStringLiteral("Connecting") : state);
-        }
-    });
-
     connect(&m_cinemeta, &CinemetaClient::catalogsDiscovered, this, [this](const QVariantList &sections) {
         m_homeSections.clear();
         for (const QVariant &entry : sections) {
@@ -712,7 +704,6 @@ bool ApplicationController::traktAuthPending() const { return m_trakt.authPendin
 bool ApplicationController::traktBusy() const { return m_trakt.busy(); }
 bool ApplicationController::playbackActive() const { return m_playbackActive; }
 bool ApplicationController::playbackBuffering() const { return m_playbackBuffering; }
-QVariantMap ApplicationController::streamPrewarmStats() const { return m_streamPrewarmStats; }
 bool ApplicationController::playbackPaused() const { return m_playbackPaused; }
 QString ApplicationController::playbackTitle() const { return m_playbackTitle; }
 double ApplicationController::playbackPosition() const { return m_playbackPosition; }
@@ -894,91 +885,32 @@ bool ApplicationController::startPlayback(const QVariantMap &playbackMedia,
                                           const QString &url, const QString &title, const QVariantMap &headers,
                                           const QStringList &subtitleUrls, double startSeconds, double startPercent)
 {
-    abortStreamPrewarm();
+    // Warm the backend's tail range before/while mpv opens the file, so its
+    // seek to the MKV Cues at EOF doesn't pay a cold on-demand fetch.
+    prewarmStreamTail(url, headers);
+
     const QStringList extraArgs = QProcess::splitCommand(m_mpvExtraArgs);
     setPlaybackState(false, title);
-    m_playbackBuffering = true;
-    emit playbackStateChanged();
-    setStatusMessage(QStringLiteral("Preparing stream…"));
 
-    QNetworkReply *reply = prewarmStreamTail(url, headers);
-    if (!reply) {
-        m_playbackBuffering = false;
-        emit playbackStateChanged();
-        return false;
+    if (m_player.play(url, title, headers, subtitleUrls,
+                      m_subtitleLanguage,
+                      m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint,
+                      m_mpvModernz, m_mpvFullscreen, extraArgs,
+                      startSeconds, startPercent)) {
+        m_currentPlaybackMedia = playbackMedia;
+        return true;
     }
 
-    auto launchPlayback = [this, reply, playbackMedia, url, title, headers, subtitleUrls, extraArgs, startSeconds, startPercent]() {
-        if (m_streamPrewarmReply != reply) {
-            return;
-        }
-        resetStreamPrewarmStats();
-        if (m_player.play(url, title, headers, subtitleUrls,
-                          m_subtitleLanguage,
-                          m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint,
-                          m_mpvModernz, m_mpvFullscreen, extraArgs,
-                          startSeconds, startPercent)) {
-            m_currentPlaybackMedia = playbackMedia;
-        } else {
-            m_playbackBuffering = false;
-            emit playbackStateChanged();
-        }
-    };
-
-    connect(reply, &QNetworkReply::metaDataChanged, this, [this, reply]() {
-        if (m_streamPrewarmReply == reply && !m_streamPrewarmLaunchStarted) {
-            updateStreamPrewarmStats(reply, QStringLiteral("Connecting"));
-        }
-    });
-
-    connect(reply, &QNetworkReply::readyRead, this, [this, reply, launchPlayback]() {
-        const qint64 bytes = reply->readAll().size();
-        if (m_streamPrewarmReply != reply || m_streamPrewarmLaunchStarted) {
-            return;
-        }
-        m_streamPrewarmBytes += bytes;
-        updateStreamPrewarmStats(reply, QStringLiteral("Receiving"));
-        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        if (status >= 400) {
-            return;
-        }
-        m_streamPrewarmLaunchStarted = true;
-        launchPlayback();
-    });
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply, launchPlayback]() {
-        const qint64 bytes = reply->readAll().size();
-        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const bool ok = reply->error() == QNetworkReply::NoError && (status == 0 || status < 400);
-        if (m_streamPrewarmReply == reply && !m_streamPrewarmLaunchStarted) {
-            m_streamPrewarmBytes += bytes;
-            updateStreamPrewarmStats(reply, QStringLiteral("Ready"));
-            m_streamPrewarmLaunchStarted = true;
-            if (ok) {
-                launchPlayback();
-            } else {
-                m_playbackBuffering = false;
-                emit playbackStateChanged();
-                resetStreamPrewarmStats();
-                setStatusMessage(QStringLiteral("Stream did not become ready: %1").arg(reply->errorString()));
-            }
-        }
-        if (m_streamPrewarmReply == reply) {
-            m_streamPrewarmReply = nullptr;
-        }
-        reply->deleteLater();
-    });
-
-    return true;
+    return false;
 }
 
-QNetworkReply *ApplicationController::prewarmStreamTail(const QString &url, const QVariantMap &headers)
+void ApplicationController::prewarmStreamTail(const QString &url, const QVariantMap &headers)
 {
     const QString trimmed = url.trimmed();
     if (trimmed.isEmpty()) {
-        setStatusMessage(QStringLiteral("Cannot play an empty stream URL"));
-        return nullptr;
+        return;
     }
+    abortStreamPrewarm();
 
     QNetworkRequest request{QUrl(trimmed)};
     request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("AIOStreamsLinux/0.1"));
@@ -994,58 +926,15 @@ QNetworkReply *ApplicationController::prewarmStreamTail(const QString &url, cons
 
     QNetworkReply *reply = m_streamPrewarm.get(request);
     m_streamPrewarmReply = reply;
-    m_streamPrewarmLaunchStarted = false;
-    m_streamPrewarmBytes = 0;
-    m_streamPrewarmTimer.restart();
-    updateStreamPrewarmStats(reply, QStringLiteral("Connecting"));
-    m_streamPrewarmStatsTimer.start();
-    return reply;
-}
-
-void ApplicationController::updateStreamPrewarmStats(QNetworkReply *reply, const QString &state)
-{
-    const qint64 elapsedMs = m_streamPrewarmTimer.isValid() ? m_streamPrewarmTimer.elapsed() : 0;
-    const double speed = elapsedMs > 0
-        ? (static_cast<double>(m_streamPrewarmBytes) * 1000.0) / static_cast<double>(elapsedMs)
-        : 0.0;
-
-    QVariantMap stats;
-    stats.insert(QStringLiteral("active"), true);
-    stats.insert(QStringLiteral("state"), state);
-    stats.insert(QStringLiteral("bytesReceived"), m_streamPrewarmBytes);
-    stats.insert(QStringLiteral("elapsedMs"), elapsedMs);
-    stats.insert(QStringLiteral("speedBytesPerSecond"), speed);
-
-    if (reply) {
-        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        if (status > 0) {
-            stats.insert(QStringLiteral("httpStatus"), status);
+    // Drain and discard: we only want the backend to fetch the tail into its
+    // cache, not to buffer it here.
+    connect(reply, &QNetworkReply::readyRead, reply, [reply]() { reply->readAll(); });
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        if (m_streamPrewarmReply == reply) {
+            m_streamPrewarmReply = nullptr;
         }
-
-        const qint64 contentLength = reply->header(QNetworkRequest::ContentLengthHeader).toLongLong();
-        if (contentLength > 0) {
-            stats.insert(QStringLiteral("contentLength"), contentLength);
-        }
-
-        const QString contentRange = QString::fromLatin1(reply->rawHeader("Content-Range"));
-        if (!contentRange.isEmpty()) {
-            stats.insert(QStringLiteral("contentRange"), contentRange);
-        }
-    }
-
-    m_streamPrewarmStats = stats;
-    emit streamPrewarmStatsChanged();
-}
-
-void ApplicationController::resetStreamPrewarmStats()
-{
-    m_streamPrewarmStatsTimer.stop();
-    if (m_streamPrewarmStats.isEmpty() && m_streamPrewarmBytes == 0) {
-        return;
-    }
-    m_streamPrewarmBytes = 0;
-    m_streamPrewarmStats.clear();
-    emit streamPrewarmStatsChanged();
+        reply->deleteLater();
+    });
 }
 
 void ApplicationController::abortStreamPrewarm()
@@ -1054,8 +943,6 @@ void ApplicationController::abortStreamPrewarm()
         m_streamPrewarmReply->abort();
         m_streamPrewarmReply = nullptr;
     }
-    m_streamPrewarmLaunchStarted = false;
-    resetStreamPrewarmStats();
 }
 
 void ApplicationController::setPlaybackState(bool active, const QString &title)
