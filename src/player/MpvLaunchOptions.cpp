@@ -47,6 +47,7 @@ QStringList buildMpvArguments(const MpvLaunchOptions &options)
     if (options.enableModernz) {
         args << QStringLiteral("--osc=no");
         args << QStringLiteral("--osd-bar=no");
+        args << QStringLiteral("--load-scripts=no");
         args << QStringLiteral("--script-opts=modernz-download_button=no,modernz-persistent_progress=no,modernz-persistent_buffer=no");
         if (!options.modernzScriptPath.isEmpty()) {
             args << QStringLiteral("--script=%1").arg(options.modernzScriptPath);

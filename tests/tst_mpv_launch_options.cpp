@@ -46,6 +46,7 @@ void MpvLaunchOptionsTest::buildsNetworkPlaybackArguments()
     QVERIFY(args.contains(QStringLiteral("--gpu-api=vulkan")));
     QVERIFY(args.contains(QStringLiteral("--target-colorspace-hint=yes")));
     QVERIFY(args.contains(QStringLiteral("--force-media-title=Movie Title")));
+    QVERIFY(args.contains(QStringLiteral("--load-scripts=no")));
     QVERIFY(args.contains(QStringLiteral("--script=/opt/miru/modernz.lua")));
     QVERIFY(args.contains(QStringLiteral("--osd-fonts-dir=/opt/miru/fonts")));
     QVERIFY(args.contains(QStringLiteral("--slang=eng")));
@@ -71,6 +72,7 @@ void MpvLaunchOptionsTest::buildsPercentStartArguments()
     QVERIFY(args.contains(QStringLiteral("--start=12.5%")));
     QVERIFY(!args.contains(QStringLiteral("--fullscreen=yes")));
     QVERIFY(!args.contains(QStringLiteral("--hwdec=auto-safe")));
+    QVERIFY(!args.contains(QStringLiteral("--load-scripts=no")));
     QVERIFY(!args.contains(QStringLiteral("--slang=off")));
     QVERIFY(args.last() == QStringLiteral("https://example.invalid/show.mkv"));
 }
@@ -86,6 +88,7 @@ void MpvLaunchOptionsTest::suppressesBuiltInOscWhenModernzResourceIsMissing()
 
     QVERIFY(args.contains(QStringLiteral("--osc=no")));
     QVERIFY(args.contains(QStringLiteral("--osd-bar=no")));
+    QVERIFY(args.contains(QStringLiteral("--load-scripts=no")));
     QVERIFY(args.contains(QStringLiteral("--script-opts=modernz-download_button=no,modernz-persistent_progress=no,modernz-persistent_buffer=no")));
     QVERIFY(!args.contains(QStringLiteral("--script=")));
     QVERIFY(!args.contains(QStringLiteral("--osd-fonts-dir=")));
