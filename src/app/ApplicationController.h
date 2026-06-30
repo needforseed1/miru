@@ -1,8 +1,10 @@
 #pragma once
 
+#include <QElapsedTimer>
 #include <QNetworkAccessManager>
 #include <QObject>
 #include <QSet>
+#include <QTimer>
 #include <QVariantList>
 #include <QVariantMap>
 
@@ -51,6 +53,7 @@ class ApplicationController : public QObject
     Q_PROPERTY(bool traktBusy READ traktBusy NOTIFY traktChanged)
     Q_PROPERTY(bool playbackActive READ playbackActive NOTIFY playbackStateChanged)
     Q_PROPERTY(bool playbackBuffering READ playbackBuffering NOTIFY playbackStateChanged)
+    Q_PROPERTY(QVariantMap streamPrewarmStats READ streamPrewarmStats NOTIFY streamPrewarmStatsChanged)
     Q_PROPERTY(bool playbackPaused READ playbackPaused NOTIFY playbackStateChanged)
     Q_PROPERTY(QString playbackTitle READ playbackTitle NOTIFY playbackStateChanged)
     Q_PROPERTY(double playbackPosition READ playbackPosition NOTIFY playbackPositionChanged)
@@ -93,6 +96,7 @@ public:
     bool traktBusy() const;
     bool playbackActive() const;
     bool playbackBuffering() const;
+    QVariantMap streamPrewarmStats() const;
     bool playbackPaused() const;
     QString playbackTitle() const;
     double playbackPosition() const;
@@ -157,6 +161,7 @@ signals:
     void mpvExtraArgsChanged();
     void traktChanged();
     void playbackStateChanged();
+    void streamPrewarmStatsChanged();
     void playbackPositionChanged();
     void loadingChanged();
     void statusMessageChanged();
@@ -169,6 +174,8 @@ private:
     // Warm the on-demand backend's tail range (MKV Cues live there) before mpv
     // opens, so slow providers do not show an empty mpv window while preparing.
     QNetworkReply *prewarmStreamTail(const QString &url, const QVariantMap &headers);
+    void updateStreamPrewarmStats(QNetworkReply *reply, const QString &state);
+    void resetStreamPrewarmStats();
     void abortStreamPrewarm();
     void setLoading(bool loading);
     void setStreamsLoading(bool loading);
@@ -190,6 +197,10 @@ private:
     QNetworkAccessManager m_streamPrewarm;
     QNetworkReply *m_streamPrewarmReply = nullptr;
     bool m_streamPrewarmLaunchStarted = false;
+    QElapsedTimer m_streamPrewarmTimer;
+    QTimer m_streamPrewarmStatsTimer;
+    QVariantMap m_streamPrewarmStats;
+    qint64 m_streamPrewarmBytes = 0;
 
     QVariantList m_homeSections; // [{ id, type, title, items }]
     QVariantList m_searchResults;
