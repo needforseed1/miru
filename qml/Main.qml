@@ -76,6 +76,15 @@ ApplicationWindow {
         return out
     }
 
+    function sourceHealthState(name) {
+        const health = appController.sourceHealth || []
+        for (let i = 0; i < health.length; ++i) {
+            if (health[i].name === name)
+                return health[i].state || "neutral"
+        }
+        return "neutral"
+    }
+
     function playStreamIndex(index) {
         appController.playStream(index)
     }
@@ -277,7 +286,7 @@ ApplicationWindow {
             height: 2
             width: parent.width
             color: "transparent"
-            visible: appController.loading
+            visible: appController.loading || appController.playbackBuffering
             clip: true
             Rectangle {
                 id: loadingBar
@@ -290,7 +299,7 @@ ApplicationWindow {
                     GradientStop { position: 1.0; color: "transparent" }
                 }
                 XAnimator on x {
-                    running: appController.loading
+                    running: appController.loading || appController.playbackBuffering
                     loops: Animation.Infinite
                     from: -loadingBar.width
                     to: root.width
@@ -766,97 +775,9 @@ ApplicationWindow {
                 }
 
                 SettingsCard {
-                    title: "Source health"
-                    description: "Quick status for the services Miru uses for releases, metadata, subtitles, ratings, sync, and playback."
-
-                    GridLayout {
-                        Layout.fillWidth: true
-                        Layout.topMargin: Theme.s8
-                        columns: width > 620 ? 2 : 1
-                        columnSpacing: Theme.s12
-                        rowSpacing: Theme.s12
-
-                        Repeater {
-                            model: appController.sourceHealth
-
-                            delegate: Rectangle {
-                                id: healthDelegate
-                                required property var modelData
-                                readonly property color stateColor: {
-                                    switch (healthDelegate.modelData.state) {
-                                    case "good": return Theme.success
-                                    case "warning": return Theme.gold
-                                    case "danger": return Theme.danger
-                                    default: return Theme.textMute
-                                    }
-                                }
-
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: healthItemBody.implicitHeight + Theme.s16 * 2
-                                radius: Theme.rMd
-                                color: Theme.surfaceAlt
-                                border.width: 1
-                                border.color: Qt.rgba(healthDelegate.stateColor.r,
-                                                      healthDelegate.stateColor.g,
-                                                      healthDelegate.stateColor.b,
-                                                      0.45)
-
-                                ColumnLayout {
-                                    id: healthItemBody
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.top: parent.top
-                                    anchors.margins: Theme.s16
-                                    spacing: Theme.s8
-
-                                    RowLayout {
-                                        Layout.fillWidth: true
-                                        spacing: Theme.s8
-
-                                        Rectangle {
-                                            Layout.preferredWidth: 8
-                                            Layout.preferredHeight: 8
-                                            Layout.alignment: Qt.AlignVCenter
-                                            radius: 4
-                                            color: healthDelegate.stateColor
-                                        }
-
-                                        Text {
-                                            Layout.fillWidth: true
-                                            text: healthDelegate.modelData.name
-                                            color: Theme.text
-                                            font.pixelSize: Theme.fBody
-                                            font.bold: true
-                                            elide: Text.ElideRight
-                                        }
-
-                                        Text {
-                                            text: healthDelegate.modelData.status
-                                            color: healthDelegate.stateColor
-                                            font.pixelSize: Theme.fTiny
-                                            font.bold: true
-                                            elide: Text.ElideRight
-                                        }
-                                    }
-
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: healthDelegate.modelData.detail
-                                        color: Theme.textDim
-                                        font.pixelSize: Theme.fSmall
-                                        wrapMode: Text.WordWrap
-                                        maximumLineCount: 2
-                                        elide: Text.ElideRight
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                SettingsCard {
                     title: "AIOStreams addon"
                     description: "Enter your AIOStreams manifest URL. Stored locally and used to find playable HTTP streams."
+                    statusState: root.sourceHealthState("AIOStreams")
 
                     AddonUrlField {
                         value: appController.aioStreamsUrl
@@ -871,6 +792,7 @@ ApplicationWindow {
                 SettingsCard {
                     title: "Metadata addon"
                     description: "Leave blank to use Cinemeta. Add an AIOMetadata or other Stremio-compatible manifest URL for details, artwork, episode stills, and episode ratings."
+                    statusState: root.sourceHealthState("Metadata")
 
                     AddonUrlField {
                         value: appController.metadataUrl
@@ -885,6 +807,7 @@ ApplicationWindow {
                 SettingsCard {
                     title: "Subtitles"
                     description: "Load subtitles from the OpenSubtitles Stremio addon. Choose the preferred language for mpv."
+                    statusState: root.sourceHealthState("OpenSubtitles")
 
                     Flow {
                         Layout.fillWidth: true
@@ -918,6 +841,7 @@ ApplicationWindow {
                 SettingsCard {
                     title: "Trakt"
                     description: "Sync resume progress and Next Up with Trakt. Enter a Trakt API app client ID and secret, then connect your account."
+                    statusState: root.sourceHealthState("Trakt")
 
                     ColumnLayout {
                         Layout.fillWidth: true
@@ -1040,6 +964,7 @@ ApplicationWindow {
                 SettingsCard {
                     title: "IMDb ratings"
                     description: "Downloads IMDb's public ratings dataset and caches scores locally for posters and episodes."
+                    statusState: root.sourceHealthState("IMDb ratings")
 
                     RowLayout {
                         Layout.fillWidth: true
@@ -1102,6 +1027,7 @@ ApplicationWindow {
                 SettingsCard {
                     title: "Playback"
                     description: "Launch streams in external mpv. Extra mpv arguments are appended last so they can override defaults."
+                    statusState: root.sourceHealthState("mpv")
 
                     SettingsCheck {
                         text: "Use ModernZ mpv control overlay"

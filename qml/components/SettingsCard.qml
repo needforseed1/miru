@@ -10,6 +10,7 @@ Rectangle {
 
     property string title: ""
     property string description: ""
+    property string statusState: ""
     default property alias content: body.data
 
     Layout.fillWidth: true
@@ -22,6 +23,16 @@ Rectangle {
     border.width: 1
     border.color: Theme.line
 
+    readonly property color statusColor: {
+        switch (card.statusState) {
+        case "good": return Theme.success
+        case "warning": return Theme.gold
+        case "danger": return Theme.danger
+        case "neutral": return Theme.textMute
+        default: return "transparent"
+        }
+    }
+
     ColumnLayout {
         id: body
         anchors.left: parent.left
@@ -30,13 +41,32 @@ Rectangle {
         anchors.margins: Theme.s24
         spacing: Theme.s12
 
-        Text {
+        RowLayout {
             visible: card.title.length > 0
-            text: card.title
-            color: Theme.text
-            font.pixelSize: Theme.fTitle
-            font.bold: true
+            Layout.fillWidth: true
+            spacing: Theme.s12
+
+            Text {
+                Layout.fillWidth: true
+                text: card.title
+                color: Theme.text
+                font.pixelSize: Theme.fTitle
+                font.bold: true
+                elide: Text.ElideRight
+            }
+
+            Rectangle {
+                visible: card.statusState.length > 0
+                Layout.preferredWidth: 10
+                Layout.preferredHeight: 10
+                Layout.alignment: Qt.AlignTop
+                radius: 5
+                color: card.statusColor
+                border.width: 1
+                border.color: Qt.rgba(card.statusColor.r, card.statusColor.g, card.statusColor.b, 0.65)
+            }
         }
+
         Text {
             visible: card.description.length > 0
             Layout.fillWidth: true

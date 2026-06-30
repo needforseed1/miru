@@ -166,10 +166,9 @@ private:
                        const QString &url, const QString &title, const QVariantMap &headers,
                        const QStringList &subtitleUrls, double startSeconds, double startPercent);
     void setPlaybackState(bool active, const QString &title = QString());
-    // Warm the on-demand backend's tail range (MKV Cues live there) in parallel
-    // with mpv's open, so its seek-to-EOF index read is served from a warm
-    // backend cache instead of a cold ~9s Usenet fetch.
-    void prewarmStreamTail(const QString &url, const QVariantMap &headers);
+    // Warm the on-demand backend's tail range (MKV Cues live there) before mpv
+    // opens, so slow providers do not show an empty mpv window while preparing.
+    QNetworkReply *prewarmStreamTail(const QString &url, const QVariantMap &headers);
     void abortStreamPrewarm();
     void setLoading(bool loading);
     void setStreamsLoading(bool loading);
@@ -190,6 +189,7 @@ private:
     ExternalMpvPlayer m_player;
     QNetworkAccessManager m_streamPrewarm;
     QNetworkReply *m_streamPrewarmReply = nullptr;
+    bool m_streamPrewarmLaunchStarted = false;
 
     QVariantList m_homeSections; // [{ id, type, title, items }]
     QVariantList m_searchResults;
