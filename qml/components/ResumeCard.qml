@@ -7,6 +7,7 @@ Item {
 
     property var item: ({})
     property bool landscape: false
+    property bool removable: !!root.item.key
     signal clicked(var item)
     signal removeRequested(string key)
 
@@ -25,6 +26,7 @@ Item {
     readonly property string imageSource: landscape
                                          ? (item.thumbnail || item.episodeThumbnail || item.background || item.poster || "")
                                          : (item.poster || item.thumbnail || item.episodeThumbnail || item.background || "")
+    readonly property bool removeVisible: root.removable && (hover.hovered || removeButton.hovered || removeButton.activeFocus)
 
     Rectangle {
         id: posterFrame
@@ -74,14 +76,18 @@ Item {
             anchors.margins: Theme.s8
             width: 30
             height: 30
-            text: "x"
-            visible: !!root.item.key
+            text: "X"
+            visible: root.removable
+            enabled: root.removeVisible
+            opacity: root.removeVisible ? 1.0 : 0.0
             onClicked: root.removeRequested(root.item.key)
+            Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
 
             contentItem: Text {
                 text: removeButton.text
                 color: Theme.text
-                font.pixelSize: Theme.fTitle
+                font.pixelSize: Theme.fSmall
+                font.bold: true
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }

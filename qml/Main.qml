@@ -18,6 +18,8 @@ ApplicationWindow {
     property var detailsItem: ({})
     property string baseId: ""
     property string selectedEpisodeId: ""
+    property string pendingRemoveResumeKey: ""
+    property string pendingRemoveResumeTitle: ""
 
     readonly property bool isSeries: detailsItem && detailsItem.type === "series"
 
@@ -87,8 +89,99 @@ ApplicationWindow {
         appController.resumeContinueWatching(item.key)
     }
 
+    function resumeRemoveTitle(item) {
+        const name = item.name || "this item"
+        if (item.type === "series" && item.season > 0 && item.episode > 0) {
+            const episode = "S" + item.season + " E" + item.episode
+            return item.episodeTitle ? name + " - " + episode + " - " + item.episodeTitle
+                                     : name + " - " + episode
+        }
+        return name
+    }
+
+    function confirmRemoveResume(item) {
+        if (!item || !item.key)
+            return
+        pendingRemoveResumeKey = item.key
+        pendingRemoveResumeTitle = resumeRemoveTitle(item)
+        removeResumeDialog.open()
+    }
+
     // For a series, auto-select the first episode once its metadata arrives,
     // so releases for S01E01 load by default instead of showing stale ones.
+
+    Dialog {
+        id: removeResumeDialog
+        modal: true
+        focus: true
+        width: Math.min(420, Math.max(280, root.width - Theme.s32 * 2))
+        x: Math.round((root.width - width) / 2)
+        y: Math.round((root.height - height) / 2)
+        padding: Theme.s24
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        background: Rectangle {
+            radius: Theme.rLg
+            color: Theme.surface
+            border.color: Theme.lineStrong
+            border.width: 1
+        }
+
+        contentItem: ColumnLayout {
+            spacing: Theme.s16
+            implicitWidth: removeResumeDialog.width - Theme.s24 * 2
+
+            Text {
+                text: "Remove resume progress?"
+                color: Theme.text
+                font.pixelSize: Theme.fH3
+                font.bold: true
+                Layout.fillWidth: true
+            }
+
+            Text {
+                text: root.pendingRemoveResumeTitle
+                color: Theme.text
+                font.pixelSize: Theme.fBody
+                font.bold: true
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+
+            Text {
+                text: appController.traktConnected
+                      ? "This removes the paused playback progress from Trakt. It will not mark the item watched."
+                      : "This removes the saved local playback progress. It will not mark the item watched."
+                color: Theme.textDim
+                font.pixelSize: Theme.fBody
+                lineHeight: 1.18
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: Theme.s8
+                spacing: Theme.s12
+
+                Item { Layout.fillWidth: true }
+
+                AppButton {
+                    text: "Cancel"
+                    onClicked: removeResumeDialog.close()
+                }
+
+                AppButton {
+                    text: "Remove"
+                    variant: "danger"
+                    onClicked: {
+                        appController.removeContinueWatching(root.pendingRemoveResumeKey)
+                        removeResumeDialog.close()
+                    }
+                }
+            }
+        }
+    }
 
     // ===== Background =======================================================
     Rectangle {
@@ -262,8 +355,9 @@ ApplicationWindow {
                         delegate: ResumeCard {
                             item: modelData
                             landscape: true
+                            removable: true
                             onClicked: clickedItem => root.resumeItem(clickedItem)
-                            onRemoveRequested: key => appController.removeContinueWatching(key)
+                            onRemoveRequested: key => root.confirmRemoveResume(modelData)
                         }
                     }
                 }
@@ -308,8 +402,8 @@ ApplicationWindow {
                         delegate: ResumeCard {
                             item: modelData
                             landscape: true
+                            removable: false
                             onClicked: clickedItem => root.resumeItem(clickedItem)
-                            onRemoveRequested: key => appController.removeContinueWatching(key)
                         }
                     }
                 }

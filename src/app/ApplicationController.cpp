@@ -284,6 +284,9 @@ ApplicationController::ApplicationController(QObject *parent)
     connect(&m_trakt, &TraktClient::errorOccurred, this, [this](const QString &message) {
         setStatusMessage(message);
     });
+    connect(&m_trakt, &TraktClient::playbackProgressRemoved, this, [this]() {
+        setStatusMessage(QStringLiteral("Trakt playback progress removed"));
+    });
 
     connect(&m_resumeMetadata, &CinemetaClient::metaReady, this,
             [this](const QString &, const QString &, const QVariantMap &meta) {
@@ -977,10 +980,12 @@ void ApplicationController::seekPlaybackRelative(double seconds)
 void ApplicationController::removeContinueWatching(const QString &key)
 {
     if (m_trakt.connected()) {
-        setStatusMessage(QStringLiteral("Remove Trakt progress from Trakt for now"));
+        setStatusMessage(QStringLiteral("Removing Trakt playback progress"));
+        m_trakt.removePlaybackProgress(key);
         return;
     }
     m_watchHistory.remove(key);
+    setStatusMessage(QStringLiteral("Playback progress removed"));
 }
 
 void ApplicationController::setPendingRemoteResume(const QString &type, const QString &id, double progressPercent)

@@ -108,6 +108,19 @@ QString resumeKey(const QVariantMap &item)
     return {};
 }
 
+bool removeResumeItem(QVariantList &items, const QString &key)
+{
+    for (qsizetype i = 0; i < items.size(); ++i) {
+        const QVariantMap item = items.at(i).toMap();
+        const QString itemKey = item.value(QStringLiteral("key")).toString();
+        if (itemKey == key || resumeKey(item) == key) {
+            items.removeAt(i);
+            return true;
+        }
+    }
+    return false;
+}
+
 QString metadataIdForItem(const QVariantMap &item)
 {
     return item.value(QStringLiteral("type")).toString() == QStringLiteral("series")
@@ -352,6 +365,8 @@ QVariantList playbackItemsFromJson(const QByteArray &payload, const QString &kin
         }
 
         item.insert(QStringLiteral("source"), QStringLiteral("trakt"));
+        item.insert(QStringLiteral("key"), resumeKey(item));
+        item.insert(QStringLiteral("traktPlaybackId"), entry.value(QStringLiteral("id")).toInteger());
         item.insert(QStringLiteral("progressPercent"), progress);
         item.insert(QStringLiteral("updatedAt"), pausedAtSeconds(entry));
         items.append(item);
@@ -565,6 +580,33 @@ void TraktClient::postAuthorized(const QString &path, const QByteArray &body, co
     });
 }
 
+void TraktClient::deleteAuthorized(const QString &path, const std::function<void(QNetworkReply *)> &handler)
+{
+    if (!connected()) {
+        return;
+    }
+    if (tokenExpiresSoon()) {
+        refreshAccessToken([this, path, handler](bool ok) {
+            if (ok) {
+                deleteAuthorized(path, handler);
+            }
+        });
+        return;
+    }
+
+    QNetworkRequest request(QUrl(QString::fromLatin1(kBaseUrl) + path));
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("Miru/0.1"));
+    request.setRawHeader("Accept", "application/json");
+    request.setRawHeader("trakt-api-version", "2");
+    request.setRawHeader("trakt-api-key", m_clientId.toUtf8());
+    request.setRawHeader("Authorization", QByteArray("Bearer ") + m_accessToken.toUtf8());
+    QNetworkReply *reply = m_network.deleteResource(request);
+    connect(reply, &QNetworkReply::finished, this, [reply, handler]() {
+        reply->deleteLater();
+        handler(reply);
+    });
+}
+
 bool TraktClient::tokenExpiresSoon() const
 {
     if (m_tokenCreatedAt <= 0 || m_tokenExpiresIn <= 0) {
@@ -659,6 +701,47 @@ void TraktClient::sendPlaybackProgress(const QVariantMap &media, double position
         setStatus(apiErrorMessage(payload, status > 0
             ? QStringLiteral("Failed to update Trakt playback progress (HTTP %1)").arg(status)
             : QStringLiteral("Failed to update Trakt playback progress")));
+        emit errorOccurred(m_statusMessage);
+    });
+}
+
+void TraktClient::removePlaybackProgress(const QString &key)
+{
+    if (!connected() || key.isEmpty()) {
+        return;
+    }
+
+    qint64 playbackId = 0;
+    for (const QVariant &entry : m_playbackProgress) {
+        const QVariantMap item = entry.toMap();
+        if (item.value(QStringLiteral("key")).toString() == key || resumeKey(item) == key) {
+            playbackId = item.value(QStringLiteral("traktPlaybackId")).toLongLong();
+            break;
+        }
+    }
+
+    if (playbackId <= 0) {
+        setStatus(QStringLiteral("Missing Trakt playback progress ID"));
+        emit errorOccurred(m_statusMessage);
+        return;
+    }
+
+    deleteAuthorized(QStringLiteral("/sync/playback/%1").arg(playbackId),
+                     [this, key](QNetworkReply *reply) {
+        const QByteArray payload = reply->readAll();
+        const int status = httpStatus(reply);
+        if ((reply->error() == QNetworkReply::NoError && status >= 200 && status < 300) || status == 404) {
+            removeResumeItem(m_playbackProgress, key);
+            setStatus(QStringLiteral("Trakt playback progress removed"));
+            emit changed();
+            emit playbackProgressRemoved();
+            fetchPlaybackProgress();
+            return;
+        }
+
+        setStatus(apiErrorMessage(payload, status > 0
+            ? QStringLiteral("Failed to remove Trakt playback progress (HTTP %1)").arg(status)
+            : QStringLiteral("Failed to remove Trakt playback progress")));
         emit errorOccurred(m_statusMessage);
     });
 }

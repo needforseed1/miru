@@ -39,11 +39,13 @@ public:
     void disconnectTrakt();
     void fetchPlaybackProgress();
     void sendPlaybackProgress(const QVariantMap &media, double position, double duration);
+    void removePlaybackProgress(const QString &key);
     void applyMetadata(const QVariantMap &meta);
 
 signals:
     void changed();
     void errorOccurred(const QString &message);
+    void playbackProgressRemoved();
 
 private:
     void load();
@@ -53,6 +55,7 @@ private:
     void postJson(const QString &path, const QByteArray &body, const std::function<void(QNetworkReply *)> &handler);
     void getAuthorized(const QString &path, const std::function<void(QNetworkReply *)> &handler);
     void postAuthorized(const QString &path, const QByteArray &body, const std::function<void(QNetworkReply *)> &handler);
+    void deleteAuthorized(const QString &path, const std::function<void(QNetworkReply *)> &handler);
     bool tokenExpiresSoon() const;
     void refreshAccessToken(const std::function<void(bool)> &handler);
     QJsonObject scrobbleBody(const QVariantMap &media, double progressPercent) const;
