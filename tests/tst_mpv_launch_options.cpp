@@ -9,6 +9,7 @@ class MpvLaunchOptionsTest : public QObject
 private slots:
     void buildsNetworkPlaybackArguments();
     void buildsPercentStartArguments();
+    void suppressesBuiltInOscWhenModernzResourceIsMissing();
     void appendsCustomArgsAfterDefaults();
 };
 
@@ -72,6 +73,22 @@ void MpvLaunchOptionsTest::buildsPercentStartArguments()
     QVERIFY(!args.contains(QStringLiteral("--hwdec=auto-safe")));
     QVERIFY(!args.contains(QStringLiteral("--slang=off")));
     QVERIFY(args.last() == QStringLiteral("https://example.invalid/show.mkv"));
+}
+
+void MpvLaunchOptionsTest::suppressesBuiltInOscWhenModernzResourceIsMissing()
+{
+    MpvLaunchOptions options;
+    options.socketPath = QStringLiteral("/tmp/miru.sock");
+    options.url = QStringLiteral("https://example.invalid/movie.mkv");
+    options.enableModernz = true;
+
+    const QStringList args = buildMpvArguments(options);
+
+    QVERIFY(args.contains(QStringLiteral("--osc=no")));
+    QVERIFY(args.contains(QStringLiteral("--osd-bar=no")));
+    QVERIFY(args.contains(QStringLiteral("--script-opts=modernz-download_button=no,modernz-persistent_progress=no,modernz-persistent_buffer=no")));
+    QVERIFY(!args.contains(QStringLiteral("--script=")));
+    QVERIFY(!args.contains(QStringLiteral("--osd-fonts-dir=")));
 }
 
 void MpvLaunchOptionsTest::appendsCustomArgsAfterDefaults()

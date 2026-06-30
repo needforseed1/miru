@@ -44,13 +44,15 @@ QStringList buildMpvArguments(const MpvLaunchOptions &options)
     if (!options.title.trimmed().isEmpty()) {
         args << QStringLiteral("--force-media-title=%1").arg(options.title.trimmed());
     }
-    if (options.enableModernz && !options.modernzScriptPath.isEmpty()) {
+    if (options.enableModernz) {
         args << QStringLiteral("--osc=no");
         args << QStringLiteral("--osd-bar=no");
         args << QStringLiteral("--script-opts=modernz-download_button=no,modernz-persistent_progress=no,modernz-persistent_buffer=no");
-        args << QStringLiteral("--script=%1").arg(options.modernzScriptPath);
-        if (!options.modernzFontsPath.isEmpty()) {
-            args << QStringLiteral("--osd-fonts-dir=%1").arg(options.modernzFontsPath);
+        if (!options.modernzScriptPath.isEmpty()) {
+            args << QStringLiteral("--script=%1").arg(options.modernzScriptPath);
+            if (!options.modernzFontsPath.isEmpty()) {
+                args << QStringLiteral("--osd-fonts-dir=%1").arg(options.modernzFontsPath);
+            }
         }
     }
     const QString preferredSubtitleLanguage = options.subtitleLanguage.trimmed();
