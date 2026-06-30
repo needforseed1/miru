@@ -128,6 +128,71 @@ void WatchHistory::record(const QVariantMap &media, double position, double dura
     }
 }
 
+void WatchHistory::applyMetadata(const QVariantMap &meta)
+{
+    const QString metaId = meta.value(QStringLiteral("id")).toString();
+    if (metaId.isEmpty()) {
+        return;
+    }
+
+    bool modified = false;
+    for (QVariant &entry : m_entries) {
+        QVariantMap item = entry.toMap();
+        const QString type = item.value(QStringLiteral("type")).toString();
+        const QString itemId = type == QStringLiteral("series")
+            ? item.value(QStringLiteral("baseId")).toString()
+            : item.value(QStringLiteral("id")).toString();
+        if (itemId != metaId) {
+            continue;
+        }
+
+        for (const QString &key : {QStringLiteral("poster"), QStringLiteral("background"),
+                                   QStringLiteral("description"), QStringLiteral("releaseInfo")}) {
+            const QString value = meta.value(key).toString();
+            if (!value.isEmpty() && item.value(key).toString().isEmpty()) {
+                item.insert(key, value);
+                modified = true;
+            }
+        }
+
+        const QString name = meta.value(QStringLiteral("name")).toString();
+        if (!name.isEmpty() && item.value(QStringLiteral("name")).toString().isEmpty()) {
+            item.insert(QStringLiteral("name"), name);
+            modified = true;
+        }
+
+        if (type == QStringLiteral("series")) {
+            const int season = item.value(QStringLiteral("season")).toInt();
+            const int episode = item.value(QStringLiteral("episode")).toInt();
+            for (const QVariant &videoEntry : meta.value(QStringLiteral("videos")).toList()) {
+                const QVariantMap video = videoEntry.toMap();
+                if (video.value(QStringLiteral("season")).toInt() != season
+                    || video.value(QStringLiteral("episode")).toInt() != episode) {
+                    continue;
+                }
+                const QString thumbnail = video.value(QStringLiteral("thumbnail")).toString();
+                if (!thumbnail.isEmpty() && item.value(QStringLiteral("thumbnail")).toString().isEmpty()) {
+                    item.insert(QStringLiteral("thumbnail"), thumbnail);
+                    modified = true;
+                }
+                const QString title = video.value(QStringLiteral("title")).toString();
+                if (!title.isEmpty() && item.value(QStringLiteral("episodeTitle")).toString().isEmpty()) {
+                    item.insert(QStringLiteral("episodeTitle"), title);
+                    modified = true;
+                }
+                break;
+            }
+        }
+
+        entry = item;
+    }
+
+    if (modified) {
+        scheduleSave();
+        emit changed();
+    }
+}
+
 void WatchHistory::remove(const QString &key)
 {
     for (int i = 0; i < m_entries.size(); ++i) {

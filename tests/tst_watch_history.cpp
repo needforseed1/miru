@@ -18,6 +18,7 @@ private slots:
     void cleanup();
     void recordsAndResumesMovies();
     void ignoresEarlyProgressAndRemovesCompletedItems();
+    void appliesLandscapeMetadataToExistingEntries();
     void persistsSeriesProgress();
 };
 
@@ -106,6 +107,35 @@ void WatchHistoryTest::ignoresEarlyProgressAndRemovesCompletedItems()
     history.record(movieMedia(), 95.0, 100.0);
     QVERIFY(history.inProgress().isEmpty());
     QCOMPARE(history.positionFor(movieMedia()), 0.0);
+}
+
+void WatchHistoryTest::appliesLandscapeMetadataToExistingEntries()
+{
+    WatchHistory history;
+    history.record(seriesMedia(), 120.0, 1200.0);
+
+    const QVariantMap meta{
+        {QStringLiteral("id"), QStringLiteral("tt0944947")},
+        {QStringLiteral("name"), QStringLiteral("Game of Thrones")},
+        {QStringLiteral("poster"), QStringLiteral("poster.webp")},
+        {QStringLiteral("background"), QStringLiteral("backdrop.webp")},
+        {QStringLiteral("videos"), QVariantList{
+            QVariantMap{
+                {QStringLiteral("season"), 1},
+                {QStringLiteral("episode"), 1},
+                {QStringLiteral("thumbnail"), QStringLiteral("still.webp")},
+                {QStringLiteral("title"), QStringLiteral("Winter Is Coming")},
+            },
+        }},
+    };
+
+    history.applyMetadata(meta);
+
+    const QVariantMap item = history.entry(QStringLiteral("series:tt0944947:1:1"));
+    QCOMPARE(item.value(QStringLiteral("poster")).toString(), QStringLiteral("poster.webp"));
+    QCOMPARE(item.value(QStringLiteral("background")).toString(), QStringLiteral("backdrop.webp"));
+    QCOMPARE(item.value(QStringLiteral("thumbnail")).toString(), QStringLiteral("still.webp"));
+    QCOMPARE(item.value(QStringLiteral("episodeTitle")).toString(), QStringLiteral("Winter Is Coming"));
 }
 
 void WatchHistoryTest::persistsSeriesProgress()

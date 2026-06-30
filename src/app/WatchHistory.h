@@ -19,6 +19,7 @@ public:
     double positionFor(const QVariantMap &media) const;
 
     void record(const QVariantMap &media, double position, double duration);
+    void applyMetadata(const QVariantMap &meta);
     Q_INVOKABLE void remove(const QString &key);
 
 signals:

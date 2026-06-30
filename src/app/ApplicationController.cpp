@@ -288,6 +288,7 @@ ApplicationController::ApplicationController(QObject *parent)
     connect(&m_resumeMetadata, &CinemetaClient::metaReady, this,
             [this](const QString &, const QString &, const QVariantMap &meta) {
         m_trakt.applyMetadata(meta);
+        m_watchHistory.applyMetadata(meta);
     });
     connect(&m_resumeMetadata, &CinemetaClient::errorOccurred, this, [](const QString &) {
         // Resume artwork hydration is best-effort; details/search errors still
@@ -355,7 +356,10 @@ ApplicationController::ApplicationController(QObject *parent)
         }
     });
 
-    connect(&m_watchHistory, &WatchHistory::changed, this, &ApplicationController::continueWatchingChanged);
+    connect(&m_watchHistory, &WatchHistory::changed, this, [this]() {
+        emit continueWatchingChanged();
+        hydrateTraktResumeMetadata();
+    });
 
     connect(&m_imdbRatings, &ImdbRatings::statusChanged, this, [this](const QString &message) {
         setStatusMessage(message);
@@ -390,6 +394,7 @@ ApplicationController::ApplicationController(QObject *parent)
 
     m_imdbRatings.init();
     m_imdbRatings.refreshIfStale();
+    hydrateTraktResumeMetadata();
 }
 
 QVariantList ApplicationController::withTitleRatings(const QVariantList &items) const
@@ -429,12 +434,23 @@ QVariantMap ApplicationController::mediaForStreamRequest(const QString &type, co
         if (m_selectedMeta.value(QStringLiteral("id")).toString() == baseId) {
             media.insert(QStringLiteral("name"), m_selectedMeta.value(QStringLiteral("name")).toString());
             media.insert(QStringLiteral("poster"), m_selectedMeta.value(QStringLiteral("poster")).toString());
+            media.insert(QStringLiteral("background"), m_selectedMeta.value(QStringLiteral("background")).toString());
+            for (const QVariant &entry : m_selectedMeta.value(QStringLiteral("videos")).toList()) {
+                const QVariantMap video = entry.toMap();
+                if (video.value(QStringLiteral("season")).toInt() == season
+                    && video.value(QStringLiteral("episode")).toInt() == episode) {
+                    media.insert(QStringLiteral("thumbnail"), video.value(QStringLiteral("thumbnail")).toString());
+                    media.insert(QStringLiteral("episodeTitle"), video.value(QStringLiteral("title")).toString());
+                    break;
+                }
+            }
         }
     } else {
         media.insert(QStringLiteral("baseId"), id);
         if (m_selectedMeta.value(QStringLiteral("id")).toString() == id) {
             media.insert(QStringLiteral("name"), m_selectedMeta.value(QStringLiteral("name")).toString());
             media.insert(QStringLiteral("poster"), m_selectedMeta.value(QStringLiteral("poster")).toString());
+            media.insert(QStringLiteral("background"), m_selectedMeta.value(QStringLiteral("background")).toString());
         }
     }
 
@@ -457,6 +473,23 @@ QVariantMap ApplicationController::currentPlaybackMedia(const QVariantMap &strea
     if (stringValue(media, QStringLiteral("poster")).isEmpty()) {
         media.insert(QStringLiteral("poster"), m_selectedMeta.value(QStringLiteral("poster")).toString());
     }
+    if (stringValue(media, QStringLiteral("background")).isEmpty()) {
+        media.insert(QStringLiteral("background"), m_selectedMeta.value(QStringLiteral("background")).toString());
+    }
+    if (media.value(QStringLiteral("type")).toString() == QStringLiteral("series")
+        && stringValue(media, QStringLiteral("thumbnail")).isEmpty()) {
+        const int season = media.value(QStringLiteral("season")).toInt();
+        const int episode = media.value(QStringLiteral("episode")).toInt();
+        for (const QVariant &entry : m_selectedMeta.value(QStringLiteral("videos")).toList()) {
+            const QVariantMap video = entry.toMap();
+            if (video.value(QStringLiteral("season")).toInt() == season
+                && video.value(QStringLiteral("episode")).toInt() == episode) {
+                media.insert(QStringLiteral("thumbnail"), video.value(QStringLiteral("thumbnail")).toString());
+                media.insert(QStringLiteral("episodeTitle"), video.value(QStringLiteral("title")).toString());
+                break;
+            }
+        }
+    }
     media.insert(QStringLiteral("stream"), stream);
 
     return media;
@@ -464,20 +497,24 @@ QVariantMap ApplicationController::currentPlaybackMedia(const QVariantMap &strea
 
 void ApplicationController::hydrateTraktResumeMetadata()
 {
-    if (!m_trakt.connected()) {
-        return;
+    QVariantList items = m_watchHistory.inProgress();
+    if (m_trakt.connected()) {
+        items.append(m_trakt.playbackProgress());
+        items.append(m_trakt.nextUp());
     }
 
-    QVariantList items = m_trakt.playbackProgress();
-    items.append(m_trakt.nextUp());
     for (const QVariant &entry : items) {
         const QVariantMap item = entry.toMap();
+        const QString type = item.value(QStringLiteral("type")).toString();
+        const bool needsSeriesStill = type == QStringLiteral("series")
+            && item.value(QStringLiteral("thumbnail")).toString().isEmpty()
+            && item.value(QStringLiteral("episodeThumbnail")).toString().isEmpty();
         if (!item.value(QStringLiteral("poster")).toString().isEmpty()
-            || !item.value(QStringLiteral("background")).toString().isEmpty()) {
+            && !item.value(QStringLiteral("background")).toString().isEmpty()
+            && !needsSeriesStill) {
             continue;
         }
 
-        const QString type = item.value(QStringLiteral("type")).toString();
         const QString id = type == QStringLiteral("series")
             ? item.value(QStringLiteral("baseId")).toString()
             : item.value(QStringLiteral("id")).toString();

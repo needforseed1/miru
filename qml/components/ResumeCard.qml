@@ -11,19 +11,20 @@ Item {
     signal removeRequested(string key)
 
     width: landscape ? 300 : 190
-    height: artworkHeight + 56
+    height: artworkHeight
 
     readonly property real artworkHeight: landscape ? width * 9 / 16 : width * 1.42
     readonly property real progress: item.duration > 0 ? Math.max(0, Math.min(1, item.position / item.duration))
                                                          : Math.max(0, Math.min(1, (item.progressPercent || 0) / 100))
     readonly property int minutesLeft: item.duration > item.position ? Math.max(1, Math.round((item.duration - item.position) / 60)) : 0
-    readonly property string episodeText: item.type === "series" ? "S" + item.season + " / E" + item.episode + " / " : ""
+    readonly property string episodeText: item.type === "series" ? "S" + item.season + " E" + item.episode + " · " : ""
+    readonly property string episodeTitleText: item.type === "series" && item.episodeTitle ? item.episodeTitle + " · " : ""
     readonly property string progressText: item.nextUp ? "Next up"
                                                        : item.duration > 0 ? root.minutesLeft + " min left"
                                                                          : Math.round(root.progress * 100) + "% watched"
     readonly property string imageSource: landscape
-                                         ? (item.thumbnail || item.episodeThumbnail || item.poster || "")
-                                         : (item.poster || item.thumbnail || item.episodeThumbnail || "")
+                                         ? (item.thumbnail || item.episodeThumbnail || item.background || item.poster || "")
+                                         : (item.poster || item.thumbnail || item.episodeThumbnail || item.background || "")
 
     Rectangle {
         id: posterFrame
@@ -52,6 +53,18 @@ Item {
             color: Theme.textMute
             font.pixelSize: 48
             font.bold: true
+        }
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: Math.min(parent.height, 92)
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: "transparent" }
+                GradientStop { position: 0.55; color: "#bb05070d" }
+                GradientStop { position: 1.0; color: "#ee05070d" }
+            }
         }
 
         Button {
@@ -91,32 +104,33 @@ Item {
                 color: Theme.accentBright
             }
         }
-    }
 
-    Column {
-        anchors.top: posterFrame.bottom
-        anchors.topMargin: Theme.s8
-        anchors.left: parent.left
-        anchors.right: parent.right
-        spacing: 3
+        Column {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: Theme.s12
+            anchors.bottomMargin: Theme.s8
+            spacing: 3
 
-        Text {
-            width: parent.width
-            text: root.item.name || "Untitled"
-            color: hover.hovered ? Theme.accentBright : Theme.text
-            font.pixelSize: Theme.fBody
-            font.bold: true
-            maximumLineCount: 1
-            elide: Text.ElideRight
-        }
+            Text {
+                width: parent.width
+                text: root.item.name || "Untitled"
+                color: hover.hovered ? Theme.accentBright : Theme.text
+                font.pixelSize: Theme.fBody
+                font.bold: true
+                maximumLineCount: 1
+                elide: Text.ElideRight
+            }
 
-        Text {
-            width: parent.width
-            text: root.episodeText + root.progressText
-            color: Theme.textMute
-            font.pixelSize: Theme.fSmall
-            maximumLineCount: 1
-            elide: Text.ElideRight
+            Text {
+                width: parent.width
+                text: root.episodeText + root.episodeTitleText + root.progressText
+                color: Theme.textDim
+                font.pixelSize: Theme.fSmall
+                maximumLineCount: 1
+                elide: Text.ElideRight
+            }
         }
     }
 
