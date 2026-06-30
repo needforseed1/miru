@@ -7,30 +7,35 @@ on:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    env:
+      QT_VERSION: 6.8.3
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             cmake \
             g++ \
+            libgl1-mesa-dev \
             libxkbcommon-dev \
             mpv \
-            qml6-module-qtquick \
-            qml6-module-qtquick-controls \
-            qml6-module-qtquick-effects \
-            qml6-module-qtquick-layouts \
-            qt6-base-dev \
-            qt6-declarative-dev \
-            qt6-image-formats-plugins \
+            python3-pip \
             zlib1g-dev
 
+      - name: Install Qt
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install aqtinstall
+          python3 -m aqt install-qt linux desktop "$QT_VERSION" gcc_64 -O "$RUNNER_TEMP/qt" --modules qtimageformats
+          echo "QT_ROOT=$RUNNER_TEMP/qt/$QT_VERSION/gcc_64" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/qt/$QT_VERSION/gcc_64/bin" >> "$GITHUB_PATH"
+
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_PREFIX_PATH="$QT_ROOT"
 
       - name: Build
         run: cmake --build build --parallel
