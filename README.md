@@ -103,11 +103,10 @@ cmake --build build
 Run the development build:
 
 ```bash
-./build/stremio-linux
+./build/miru
 ```
 
-The executable target is still named `stremio-linux`; the UI and app display
-name are `Miru`.
+The executable target and app display name are `Miru`/`miru`.
 
 ### macOS Bundle
 
@@ -165,13 +164,13 @@ next launch.
 For a native Wayland run:
 
 ```bash
-QT_QPA_PLATFORM=wayland ./build/stremio-linux
+QT_QPA_PLATFORM=wayland ./build/miru
 ```
 
 For a manual scale override:
 
 ```bash
-QT_SCALE_FACTOR=1.25 ./build/stremio-linux
+QT_SCALE_FACTOR=1.25 ./build/miru
 ```
 
 ## Playback

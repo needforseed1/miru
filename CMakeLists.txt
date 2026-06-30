@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(StremioLinuxFrontend VERSION 0.1.0 LANGUAGES CXX)
+project(Miru VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,7 +10,7 @@ find_package(ZLIB REQUIRED)
 
 qt_standard_project_setup(REQUIRES 6.5)
 
-qt_add_executable(stremio-linux
+qt_add_executable(miru
     src/main.cpp
     src/app/ApplicationController.cpp
     src/app/ApplicationController.h
@@ -38,7 +38,7 @@ qt_add_executable(stremio-linux
 if(APPLE)
     set(MIRU_BUNDLED_MPV "" CACHE FILEPATH "Path to an mpv executable to copy into the macOS app bundle")
 
-    set_target_properties(stremio-linux PROPERTIES
+    set_target_properties(miru PROPERTIES
         MACOSX_BUNDLE TRUE
         OUTPUT_NAME "Miru"
         MACOSX_BUNDLE_BUNDLE_NAME "Miru"
@@ -48,18 +48,18 @@ if(APPLE)
     )
 
     if(MIRU_BUNDLED_MPV)
-        add_custom_command(TARGET stremio-linux POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_DIR:stremio-linux>/Contents/Resources/mpv"
+        add_custom_command(TARGET miru POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_DIR:miru>/Contents/Resources/mpv"
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     "${MIRU_BUNDLED_MPV}"
-                    "$<TARGET_BUNDLE_DIR:stremio-linux>/Contents/Resources/mpv/mpv"
+                    "$<TARGET_BUNDLE_DIR:miru>/Contents/Resources/mpv/mpv"
             COMMENT "Bundling mpv into the macOS app"
             VERBATIM
         )
     endif()
 endif()
 
-qt_add_resources(stremio-linux "appresources"
+qt_add_resources(miru "appresources"
     PREFIX "/"
     FILES
         resources/Sterzeck_badge.json
@@ -68,12 +68,12 @@ qt_add_resources(stremio-linux "appresources"
 set(MIRU_MPV_RESOURCES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/mpv")
 if(EXISTS "${MIRU_MPV_RESOURCES_DIR}")
     if(APPLE)
-        set(MIRU_MPV_RESOURCES_OUTPUT "$<TARGET_BUNDLE_DIR:stremio-linux>/Contents/Resources/mpv")
+        set(MIRU_MPV_RESOURCES_OUTPUT "$<TARGET_BUNDLE_DIR:miru>/Contents/Resources/mpv")
     else()
-        set(MIRU_MPV_RESOURCES_OUTPUT "$<TARGET_FILE_DIR:stremio-linux>/mpv")
+        set(MIRU_MPV_RESOURCES_OUTPUT "$<TARGET_FILE_DIR:miru>/mpv")
     endif()
 
-    add_custom_command(TARGET stremio-linux POST_BUILD
+    add_custom_command(TARGET miru POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${MIRU_MPV_RESOURCES_DIR}"
                 "${MIRU_MPV_RESOURCES_OUTPUT}"
@@ -84,7 +84,7 @@ endif()
 
 set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
-qt_add_qml_module(stremio-linux
+qt_add_qml_module(miru
     URI StremioLinux
     VERSION 1.0
     QML_FILES
@@ -107,7 +107,7 @@ qt_add_qml_module(stremio-linux
         qml/components/AddonUrlField.qml
 )
 
-target_link_libraries(stremio-linux
+target_link_libraries(miru
     PRIVATE
         Qt6::Quick
         Qt6::QuickControls2
@@ -117,9 +117,9 @@ target_link_libraries(stremio-linux
         ZLIB::ZLIB
 )
 
-install(TARGETS stremio-linux
+install(TARGETS miru
     BUNDLE DESTINATION .
     RUNTIME DESTINATION bin
 )
 
-install(DIRECTORY resources/mpv DESTINATION share/stremio-linux)
+install(DIRECTORY resources/mpv DESTINATION share/miru)

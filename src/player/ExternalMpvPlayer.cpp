@@ -64,7 +64,7 @@ QString bundledMpvResourcePath(const QString &relativePath)
     candidates << appDir.absoluteFilePath(QStringLiteral("../Resources/mpv/%1").arg(relativePath));
 #else
     candidates << appDir.absoluteFilePath(QStringLiteral("mpv/%1").arg(relativePath));
-    candidates << appDir.absoluteFilePath(QStringLiteral("../share/stremio-linux/mpv/%1").arg(relativePath));
+    candidates << appDir.absoluteFilePath(QStringLiteral("../share/miru/mpv/%1").arg(relativePath));
 #endif
 
     for (const QString &candidate : candidates) {
