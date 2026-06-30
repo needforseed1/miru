@@ -118,7 +118,8 @@ cmake -S . -B build-macos -DCMAKE_BUILD_TYPE=Release -DMIRU_BUNDLED_MPV=/path/to
 cmake --build build-macos
 ```
 
-See `docs/macos-build.md` for packaging notes.
+This produces `Miru.app` with bundled mpv resources. See `docs/macos-build.md`
+for packaging and verification notes.
 
 ## Settings
 

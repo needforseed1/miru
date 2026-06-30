@@ -35,6 +35,30 @@ qt_add_executable(stremio-linux
     src/player/MpvVideoSurface.h
 )
 
+if(APPLE)
+    set(MIRU_BUNDLED_MPV "" CACHE FILEPATH "Path to an mpv executable to copy into the macOS app bundle")
+
+    set_target_properties(stremio-linux PROPERTIES
+        MACOSX_BUNDLE TRUE
+        OUTPUT_NAME "Miru"
+        MACOSX_BUNDLE_BUNDLE_NAME "Miru"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "io.github.needforseed1.miru"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+    )
+
+    if(MIRU_BUNDLED_MPV)
+        add_custom_command(TARGET stremio-linux POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_DIR:stremio-linux>/Contents/Resources/mpv"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${MIRU_BUNDLED_MPV}"
+                    "$<TARGET_BUNDLE_DIR:stremio-linux>/Contents/Resources/mpv/mpv"
+            COMMENT "Bundling mpv into the macOS app"
+            VERBATIM
+        )
+    endif()
+endif()
+
 qt_add_resources(stremio-linux "appresources"
     PREFIX "/"
     FILES
