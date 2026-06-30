@@ -3,3 +3,4 @@ build/
 *.user
 *.autosave
 CLAUDE.md
+docs/*-plan.md

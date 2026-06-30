@@ -1,5 +1,7 @@
 #include "ExternalMpvPlayer.h"
 
+#include "MpvLaunchOptions.h"
+
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -97,12 +99,6 @@ bool isAsahiLinux()
     return false;
 }
 
-bool shouldForwardPlaybackHeader(const QString &key, const QString &value)
-{
-    return !key.trimmed().isEmpty()
-        && !value.trimmed().isEmpty()
-        && key.compare(QStringLiteral("Range"), Qt::CaseInsensitive) != 0;
-}
 } // namespace
 
 ExternalMpvPlayer::ExternalMpvPlayer(QObject *parent)
@@ -110,13 +106,17 @@ ExternalMpvPlayer::ExternalMpvPlayer(QObject *parent)
 {
 }
 
+QString ExternalMpvPlayer::resolvedExecutablePath()
+{
+    return resolveMpvExecutable();
+}
+
 bool ExternalMpvPlayer::play(const QString &url, const QString &title,
                                  const QVariantMap &headers, const QStringList &subtitleUrls,
                                  const QString &subtitleLanguage,
                                  bool enableHwdec, bool enableGpuNext, bool enableHdrHint,
                                  bool enableModernz, bool startFullscreen,
-                                 const QStringList &extraArgs, double startSeconds, double startPercent,
-                                 qulonglong windowId)
+                                 const QStringList &extraArgs, double startSeconds, double startPercent)
 {
     resetWatcher(true);
 
@@ -125,95 +125,39 @@ bool ExternalMpvPlayer::play(const QString &url, const QString &title,
         return false;
     }
 
-    const QString mpv = resolveMpvExecutable();
+    const QString mpv = resolvedExecutablePath();
     if (mpv.isEmpty()) {
         emit errorOccurred(QStringLiteral("mpv was not found in the app bundle or on PATH"));
         return false;
     }
 
-    QStringList args;
     const QString socketPath = QDir::temp().absoluteFilePath(
         QStringLiteral("aiostreams-mpv-%1-%2.sock")
             .arg(QCoreApplication::applicationPid())
             .arg(QDateTime::currentMSecsSinceEpoch()));
-    args << QStringLiteral("--input-ipc-server=%1").arg(socketPath);
-    args << QStringLiteral("--save-position-on-quit=no");
-    if (startFullscreen && windowId == 0) {
-        args << QStringLiteral("--fullscreen=yes");
-    }
-    if (windowId > 0) {
-        args << QStringLiteral("--wid=%1").arg(windowId);
-        args << QStringLiteral("--force-window=yes");
-    }
-    if (startSeconds > 0.0) {
-        args << QStringLiteral("--start=%1").arg(startSeconds, 0, 'f', 1);
-    } else if (startPercent > 0.0 && startPercent < 100.0) {
-        args << QStringLiteral("--start=%1%").arg(startPercent, 0, 'f', 1);
-    }
 
-    // We only ever hand mpv a direct HTTP URL, so disable the youtube-dl
-    // hook. It does not run for a stream that opens natively, but it is
-    // mpv's fallback when an open fails -- and debrid/Usenet links do
-    // expire. Disabling it turns a dead link into an instant failure
-    // instead of a multi-second yt-dlp probe that cannot help.
-    args << QStringLiteral("--ytdl=no");
-
-    // Keep a healthy read-ahead buffer for smooth network playback. Debrid
-    // REMUX links can be slow to return the first HTTP response when cold, so
-    // keep mpv's default 60s network timeout instead of failing too early.
-    // (These do not speed up a normal start: that is bounded by the
-    // server's first-byte latency and the seeks mpv makes to read the
-    // container index up front -- which is also what makes seeking fast.)
-    args << QStringLiteral("--cache=yes");
-    args << QStringLiteral("--demuxer-readahead-secs=20");
-    args << QStringLiteral("--network-timeout=60");
-
-    // Large REMUX streams can briefly starve PipeWire while demux/decode catches
-    // up. A modest audio buffer smooths those dips without hiding real stalls.
-    args << QStringLiteral("--audio-buffer=1.0");
-
-    if (isAsahiLinux()) {
-        // Asahi Linux currently lacks the Vulkan video decode extension mpv
-        // probes for HEVC. Avoid repeated failed hwaccel setup before software
-        // fallback. User custom args are appended last and can still override.
-        args << QStringLiteral("--hwdec=no");
-    } else if (enableHwdec) {
-        args << QStringLiteral("--hwdec=auto-safe");
-    }
-    if (enableGpuNext) {
-        args << QStringLiteral("--vo=gpu-next");
-    }
-    if (enableHdrHint) {
-        args << QStringLiteral("--gpu-api=vulkan");
-        args << QStringLiteral("--target-colorspace-hint=yes");
-    }
-    if (!title.trimmed().isEmpty()) {
-        args << QStringLiteral("--force-media-title=%1").arg(title.trimmed());
-    }
+    MpvLaunchOptions launchOptions;
+    launchOptions.socketPath = socketPath;
+    launchOptions.url = url;
+    launchOptions.title = title;
+    launchOptions.headers = headers;
+    launchOptions.subtitleLanguage = subtitleLanguage;
+    launchOptions.enableHwdec = enableHwdec;
+    launchOptions.enableGpuNext = enableGpuNext;
+    launchOptions.enableHdrHint = enableHdrHint;
+    launchOptions.enableModernz = enableModernz;
+    launchOptions.startFullscreen = startFullscreen;
+    launchOptions.extraArgs = extraArgs;
+    launchOptions.startSeconds = startSeconds;
+    launchOptions.startPercent = startPercent;
+    launchOptions.asahiLinux = isAsahiLinux();
     if (enableModernz) {
-        const QString modernzScript = bundledMpvResourcePath(QStringLiteral("modernz/modernz.lua"));
-        if (!modernzScript.isEmpty()) {
-            args << QStringLiteral("--osc=no");
-            args << QStringLiteral("--osd-bar=no");
-            args << QStringLiteral("--script-opts=modernz-download_button=no");
-            args << QStringLiteral("--script=%1").arg(modernzScript);
-            const QString modernzFonts = bundledMpvResourcePath(QStringLiteral("modernz/fonts"));
-            if (!modernzFonts.isEmpty()) {
-                args << QStringLiteral("--osd-fonts-dir=%1").arg(modernzFonts);
-            }
-        }
+        launchOptions.modernzScriptPath = bundledMpvResourcePath(QStringLiteral("modernz/modernz.lua"));
+        launchOptions.modernzFontsPath = bundledMpvResourcePath(QStringLiteral("modernz/fonts"));
     }
+    const QStringList args = buildMpvArguments(launchOptions);
+
     m_preferredSubtitleLanguage = subtitleLanguage.trimmed();
-    if (!m_preferredSubtitleLanguage.isEmpty() && m_preferredSubtitleLanguage != QStringLiteral("off")) {
-        args << QStringLiteral("--slang=%1").arg(m_preferredSubtitleLanguage);
-    }
-    for (auto it = headers.constBegin(); it != headers.constEnd(); ++it) {
-        const QString value = it.value().toString();
-        if (shouldForwardPlaybackHeader(it.key(), value)) {
-            args << QStringLiteral("--http-header-fields-append=%1: %2")
-                        .arg(it.key().trimmed(), value.trimmed());
-        }
-    }
 
     // External subtitles (OpenSubtitles) are NOT passed as --sub-file: mpv loads
     // those during the initial file open and blocks the first frame on them
@@ -226,25 +170,7 @@ bool ExternalMpvPlayer::play(const QString &url, const QString &title,
         }
     }
 
-    args << extraArgs;
-    args << url.trimmed();
-
-    if (windowId > 0) {
-        m_process = new QProcess(this);
-        connect(m_process, &QProcess::finished, this, &ExternalMpvPlayer::finishPlayback);
-        connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
-            if (error == QProcess::FailedToStart) {
-                emit errorOccurred(QStringLiteral("Failed to start embedded mpv"));
-            }
-        });
-        m_process->start(mpv, args);
-        if (!m_process->waitForStarted(3000)) {
-            emit errorOccurred(QStringLiteral("Failed to start embedded mpv"));
-            m_process->deleteLater();
-            m_process = nullptr;
-            return false;
-        }
-    } else if (!QProcess::startDetached(mpv, args)) {
+    if (!QProcess::startDetached(mpv, args)) {
         emit errorOccurred(QStringLiteral("Failed to start mpv"));
         return false;
     }
@@ -287,19 +213,6 @@ void ExternalMpvPlayer::resetWatcher(bool emitFinished)
         m_socket->abort();
         m_socket->deleteLater();
         m_socket = nullptr;
-    }
-
-    if (m_process) {
-        QProcess *process = m_process;
-        m_process = nullptr;
-        process->disconnect(this);
-        if (process->state() != QProcess::NotRunning) {
-            process->terminate();
-            if (!process->waitForFinished(1000)) {
-                process->kill();
-            }
-        }
-        process->deleteLater();
     }
 
     m_readBuffer.clear();

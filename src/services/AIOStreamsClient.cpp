@@ -104,32 +104,8 @@ void AIOStreamsClient::requestStreams(const QString &type, const QString &id, in
             return;
         }
 
-        QVariantList streams;
-        const QJsonArray streamArray = document.object().value(QStringLiteral("streams")).toArray();
-        for (const QJsonValue &value : streamArray) {
-            const QJsonObject stream = value.toObject();
-            if (isPlayableStream(stream)) {
-                streams.append(normalizeStream(stream));
-            }
-        }
-
-        // For an episode request, flag releases with no explicit episode
-        // marker (S01 packs, "Complete", etc.) so the UI can badge them.
-        // The addon's own order is kept: it already ranks by quality and
-        // cache status, and a cached pack streams the single episode file
-        // just as fast.
-        if (type == QStringLiteral("series")) {
-            static const QRegularExpression episodeMarker(
-                QStringLiteral("(?i)(s\\d{1,2}[ ._-]*e\\d{1,3}|(?<![a-z0-9])\\d{1,2}x\\d{1,3}(?![a-z0-9]))"));
-            for (QVariant &entry : streams) {
-                QVariantMap item = entry.toMap();
-                const QString name = item.value(QStringLiteral("filename")).toString().isEmpty()
-                    ? item.value(QStringLiteral("title")).toString()
-                    : item.value(QStringLiteral("filename")).toString();
-                item.insert(QStringLiteral("seasonPack"), !episodeMarker.match(name).hasMatch());
-                entry = item;
-            }
-        }
+        const QVariantList streams =
+            normalizeStreams(document.object().value(QStringLiteral("streams")).toArray(), type);
 
         emit streamsReady(streams);
     });
@@ -146,6 +122,41 @@ QString AIOStreamsClient::normalizedBaseUrl() const
     }
     return base;
 }
+
+QVariantList AIOStreamsClient::normalizeStreams(const QJsonArray &streamArray, const QString &type) const
+{
+    QVariantList streams;
+    for (const QJsonValue &value : streamArray) {
+        const QJsonObject stream = value.toObject();
+        if (isPlayableStream(stream)) {
+            streams.append(normalizeStream(stream));
+        }
+    }
+
+    // For an episode request, flag releases with no explicit episode marker
+    // (S01 packs, "Complete", etc.) so the UI can badge them.
+    if (type == QStringLiteral("series")) {
+        static const QRegularExpression episodeMarker(
+            QStringLiteral("(?i)(s\\d{1,2}[ ._-]*e\\d{1,3}|(?<![a-z0-9])\\d{1,2}x\\d{1,3}(?![a-z0-9]))"));
+        for (QVariant &entry : streams) {
+            QVariantMap item = entry.toMap();
+            const QString name = item.value(QStringLiteral("filename")).toString().isEmpty()
+                ? item.value(QStringLiteral("title")).toString()
+                : item.value(QStringLiteral("filename")).toString();
+            item.insert(QStringLiteral("seasonPack"), !episodeMarker.match(name).hasMatch());
+            entry = item;
+        }
+    }
+
+    return streams;
+}
+
+#ifdef MIRU_TESTING
+QVariantList AIOStreamsClient::normalizeStreamsForTesting(const QJsonArray &streamArray, const QString &type) const
+{
+    return normalizeStreams(streamArray, type);
+}
+#endif
 
 QVariantMap AIOStreamsClient::normalizeStream(const QJsonObject &stream) const
 {

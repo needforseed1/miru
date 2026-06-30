@@ -18,10 +18,6 @@ ApplicationWindow {
     property var detailsItem: ({})
     property string baseId: ""
     property string selectedEpisodeId: ""
-    property int previousPage: 0
-    property string pendingPlaybackKind: ""
-    property int pendingStreamIndex: -1
-    property string pendingResumeKey: ""
 
     readonly property bool isSeries: detailsItem && detailsItem.type === "series"
 
@@ -79,16 +75,7 @@ ApplicationWindow {
     }
 
     function playStreamIndex(index) {
-        if (appController.playerMode === "embedded") {
-            previousPage = page
-            pendingPlaybackKind = "stream"
-            pendingStreamIndex = index
-            pendingResumeKey = ""
-            page = 3
-            Qt.callLater(startPendingPlayback)
-        } else {
-            appController.playStream(index)
-        }
+        appController.playStream(index)
     }
 
     function resumeItem(item) {
@@ -97,56 +84,7 @@ ApplicationWindow {
             return
         }
 
-        if (appController.playerMode === "embedded") {
-            previousPage = page
-            pendingPlaybackKind = "resume"
-            pendingStreamIndex = -1
-            pendingResumeKey = item.key
-            page = 3
-            Qt.callLater(startPendingPlayback)
-        } else {
-            appController.resumeContinueWatching(item.key)
-        }
-    }
-
-    function startPendingPlayback() {
-        if (page !== 3 || pendingPlaybackKind === "")
-            return
-        if (!playerSurface || playerSurface.windowId === 0) {
-            Qt.callLater(startPendingPlayback)
-            return
-        }
-
-        let embeddedStarted = false
-        if (pendingPlaybackKind === "stream")
-            embeddedStarted = appController.playStreamEmbedded(pendingStreamIndex, playerSurface.windowId)
-        else if (pendingPlaybackKind === "resume")
-            embeddedStarted = appController.resumeContinueWatchingEmbedded(pendingResumeKey, playerSurface.windowId)
-
-        pendingPlaybackKind = ""
-        pendingStreamIndex = -1
-        pendingResumeKey = ""
-        if (!embeddedStarted)
-            page = previousPage
-    }
-
-    function closePlayer() {
-        appController.stopPlayback()
-        pendingPlaybackKind = ""
-        page = previousPage
-    }
-
-    function formatTime(seconds) {
-        if (!seconds || seconds < 0)
-            return "0:00"
-        const total = Math.floor(seconds)
-        const h = Math.floor(total / 3600)
-        const m = Math.floor((total % 3600) / 60)
-        const s = total % 60
-        const ss = s < 10 ? "0" + s : "" + s
-        if (h > 0)
-            return h + ":" + (m < 10 ? "0" + m : "" + m) + ":" + ss
-        return m + ":" + ss
+        appController.resumeContinueWatching(item.key)
     }
 
     // For a series, auto-select the first episode once its metadata arrives,
@@ -212,9 +150,6 @@ ApplicationWindow {
                 variant: "nav"
                 active: root.page === 0
                 onClicked: {
-                    if (root.page === 3)
-                        appController.stopPlayback()
-                    root.pendingPlaybackKind = ""
                     searchField.clear()
                     appController.clearSearch()
                     root.page = 0
@@ -225,9 +160,6 @@ ApplicationWindow {
                 variant: "nav"
                 active: root.page === 2
                 onClicked: {
-                    if (root.page === 3)
-                        appController.stopPlayback()
-                    root.pendingPlaybackKind = ""
                     root.page = 2
                 }
             }
@@ -738,6 +670,95 @@ ApplicationWindow {
                 }
 
                 SettingsCard {
+                    title: "Source health"
+                    description: "Quick status for the services Miru uses for releases, metadata, subtitles, ratings, sync, and playback."
+
+                    GridLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Theme.s8
+                        columns: width > 620 ? 2 : 1
+                        columnSpacing: Theme.s12
+                        rowSpacing: Theme.s12
+
+                        Repeater {
+                            model: appController.sourceHealth
+
+                            delegate: Rectangle {
+                                id: healthDelegate
+                                required property var modelData
+                                readonly property color stateColor: {
+                                    switch (healthDelegate.modelData.state) {
+                                    case "good": return Theme.success
+                                    case "warning": return Theme.gold
+                                    case "danger": return Theme.danger
+                                    default: return Theme.textMute
+                                    }
+                                }
+
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: healthItemBody.implicitHeight + Theme.s16 * 2
+                                radius: Theme.rMd
+                                color: Theme.surfaceAlt
+                                border.width: 1
+                                border.color: Qt.rgba(healthDelegate.stateColor.r,
+                                                      healthDelegate.stateColor.g,
+                                                      healthDelegate.stateColor.b,
+                                                      0.45)
+
+                                ColumnLayout {
+                                    id: healthItemBody
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.top: parent.top
+                                    anchors.margins: Theme.s16
+                                    spacing: Theme.s8
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: Theme.s8
+
+                                        Rectangle {
+                                            Layout.preferredWidth: 8
+                                            Layout.preferredHeight: 8
+                                            Layout.alignment: Qt.AlignVCenter
+                                            radius: 4
+                                            color: healthDelegate.stateColor
+                                        }
+
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: healthDelegate.modelData.name
+                                            color: Theme.text
+                                            font.pixelSize: Theme.fBody
+                                            font.bold: true
+                                            elide: Text.ElideRight
+                                        }
+
+                                        Text {
+                                            text: healthDelegate.modelData.status
+                                            color: healthDelegate.stateColor
+                                            font.pixelSize: Theme.fTiny
+                                            font.bold: true
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: healthDelegate.modelData.detail
+                                        color: Theme.textDim
+                                        font.pixelSize: Theme.fSmall
+                                        wrapMode: Text.WordWrap
+                                        maximumLineCount: 2
+                                        elide: Text.ElideRight
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                SettingsCard {
                     title: "AIOStreams addon"
                     description: "Enter your AIOStreams manifest URL. Stored locally and used to find playable HTTP streams."
 
@@ -984,23 +1005,7 @@ ApplicationWindow {
 
                 SettingsCard {
                     title: "Playback"
-                    description: "Choose embedded playback or launch mpv externally. Extra mpv arguments are appended last so they can override defaults."
-
-                    Flow {
-                        Layout.fillWidth: true
-                        Layout.topMargin: Theme.s8
-                        spacing: Theme.s8
-                        ChoiceChip {
-                            label: "External mpv"
-                            current: appController.playerMode === "external"
-                            onClicked: appController.playerMode = "external"
-                        }
-                        ChoiceChip {
-                            label: "Embedded mpv"
-                            current: appController.playerMode === "embedded"
-                            onClicked: appController.playerMode = "embedded"
-                        }
-                    }
+                    description: "Launch streams in external mpv. Extra mpv arguments are appended last so they can override defaults."
 
                     SettingsCheck {
                         text: "Use ModernZ mpv control overlay"
@@ -1063,131 +1068,6 @@ ApplicationWindow {
             }
         }
 
-        // ---- Player --------------------------------------------------------
-        Item {
-            Rectangle {
-                anchors.fill: parent
-                color: "#020308"
-            }
-
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: Theme.s24
-                spacing: Theme.s16
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.s12
-
-                    AppButton {
-                        text: "‹  Back"
-                        onClicked: root.closePlayer()
-                    }
-                    Text {
-                        Layout.fillWidth: true
-                        text: appController.playbackTitle || "Embedded player"
-                        color: Theme.text
-                        font.pixelSize: Theme.fH3
-                        font.bold: true
-                        elide: Text.ElideRight
-                    }
-                    Pill {
-                        text: "Embedded mpv"
-                        accentColor: Theme.accent
-                    }
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.minimumHeight: 360
-                    color: "black"
-                    border.color: Theme.line
-                    border.width: 1
-                    clip: true
-
-                    MpvVideoSurface {
-                        id: playerSurface
-                        anchors.fill: parent
-                        anchors.margins: 1
-                        onWindowIdChanged: root.startPendingPlayback()
-                    }
-
-                    SearchSpinner {
-                        anchors.centerIn: parent
-                        visible: appController.playbackBuffering
-                                 || (!appController.playbackActive && root.pendingPlaybackKind !== "")
-                        label: "Opening stream…"
-                    }
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: 92
-                    radius: Theme.rLg
-                    color: Theme.bgElevated
-                    border.color: Theme.line
-                    border.width: 1
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: Theme.s12
-                        spacing: Theme.s8
-
-                        Slider {
-                            id: seekSlider
-                            Layout.fillWidth: true
-                            from: 0
-                            to: Math.max(1, appController.playbackDuration)
-                            value: 0
-                            enabled: appController.playbackDuration > 0
-                            onMoved: appController.seekPlayback(value)
-
-                            Binding on value {
-                                when: !seekSlider.pressed
-                                value: appController.playbackPosition
-                            }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: Theme.s8
-
-                            AppButton {
-                                text: appController.playbackPaused ? "Play" : "Pause"
-                                enabled: appController.playbackActive
-                                onClicked: appController.setPlaybackPaused(!appController.playbackPaused)
-                            }
-                            AppButton {
-                                text: "-10s"
-                                enabled: appController.playbackActive
-                                onClicked: appController.seekPlaybackRelative(-10)
-                            }
-                            AppButton {
-                                text: "+10s"
-                                enabled: appController.playbackActive
-                                onClicked: appController.seekPlaybackRelative(10)
-                            }
-                            AppButton {
-                                text: "Stop"
-                                variant: "danger"
-                                enabled: appController.playbackActive
-                                onClicked: root.closePlayer()
-                            }
-
-                            Item { Layout.fillWidth: true }
-
-                            Text {
-                                text: root.formatTime(appController.playbackPosition)
-                                      + " / " + root.formatTime(appController.playbackDuration)
-                                color: Theme.textDim
-                                font.pixelSize: Theme.fSmall
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 
     // ===== Status bar =======================================================

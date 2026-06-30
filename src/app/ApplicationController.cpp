@@ -124,6 +124,17 @@ bool isShortResult(const QVariantMap &item)
     return runtime > 0 && runtime < 45;
 }
 
+QVariantMap healthItem(const QString &name, const QString &status,
+                       const QString &detail, const QString &state)
+{
+    QVariantMap item;
+    item.insert(QStringLiteral("name"), name);
+    item.insert(QStringLiteral("status"), status);
+    item.insert(QStringLiteral("detail"), detail);
+    item.insert(QStringLiteral("state"), state);
+    return item;
+}
+
 void sortSearchResults(QVariantList &items, const QString &query)
 {
     // The metadata addon already ranks its search results (TMDB popularity for
@@ -171,10 +182,6 @@ ApplicationController::ApplicationController(QObject *parent)
     m_mpvModernz = settings.value(QStringLiteral("mpv/modernz"), true).toBool();
     m_mpvFullscreen = settings.value(QStringLiteral("mpv/fullscreen"), true).toBool();
     m_mpvExtraArgs = settings.value(QStringLiteral("mpv/extraArgs")).toString();
-    m_playerMode = settings.value(QStringLiteral("mpv/playerMode"), QStringLiteral("external")).toString();
-    if (m_playerMode != QStringLiteral("embedded")) {
-        m_playerMode = QStringLiteral("external");
-    }
 
     connect(&m_cinemeta, &CinemetaClient::catalogsDiscovered, this, [this](const QVariantList &sections) {
         m_homeSections.clear();
@@ -269,6 +276,7 @@ ApplicationController::ApplicationController(QObject *parent)
 
     connect(&m_trakt, &TraktClient::changed, this, [this]() {
         emit traktChanged();
+        emit sourceHealthChanged();
         emit continueWatchingChanged();
         emit nextUpChanged();
         hydrateTraktResumeMetadata();
@@ -305,16 +313,14 @@ ApplicationController::ApplicationController(QObject *parent)
         m_playbackActive = true;
         m_playbackBuffering = true;
         emit playbackStateChanged();
-        setStatusMessage(m_playbackEmbedded ? QStringLiteral("Starting player — opening stream…")
-                                            : QStringLiteral("Opening stream in mpv…"));
+        setStatusMessage(QStringLiteral("Opening stream in mpv…"));
     });
 
     connect(&m_player, &ExternalMpvPlayer::playbackPlaying, this, [this]() {
         m_playbackBuffering = false;
         abortStreamPrewarm(); // mpv has read the tail; stop draining it
         emit playbackStateChanged();
-        setStatusMessage(m_playbackEmbedded ? QStringLiteral("Playing")
-                                            : QStringLiteral("Playing in mpv"));
+        setStatusMessage(QStringLiteral("Playing in mpv"));
     });
 
     connect(&m_player, &ExternalMpvPlayer::positionChanged, this, [this](double position, double duration) {
@@ -359,6 +365,7 @@ ApplicationController::ApplicationController(QObject *parent)
     // on the series currently shown.
     connect(&m_imdbRatings, &ImdbRatings::refreshFinished, this, [this](bool changed) {
         emit imdbRatingsUpdatedChanged();
+        emit sourceHealthChanged();
         if (!changed) {
             return;
         }
@@ -556,6 +563,85 @@ QVariantList ApplicationController::nextUp() const
 QVariantMap ApplicationController::selectedMeta() const { return m_selectedMeta; }
 QVariantList ApplicationController::streams() const { return m_streams; }
 bool ApplicationController::streamsLoading() const { return m_streamsLoading; }
+QVariantList ApplicationController::sourceHealth() const
+{
+    QVariantList items;
+
+    if (m_aioStreamsUrl.trimmed().isEmpty()) {
+        items.append(healthItem(QStringLiteral("AIOStreams"), QStringLiteral("Needs setup"),
+                                QStringLiteral("Add a manifest URL to load releases."),
+                                QStringLiteral("warning")));
+    } else {
+        const QUrl url(m_aioStreamsUrl);
+        items.append(healthItem(QStringLiteral("AIOStreams"), QStringLiteral("Configured"),
+                                url.host().isEmpty() ? QStringLiteral("Manifest URL saved.")
+                                                     : QStringLiteral("Using %1").arg(url.host()),
+                                QStringLiteral("good")));
+    }
+
+    if (m_metadataUrl.trimmed().isEmpty()) {
+        items.append(healthItem(QStringLiteral("Metadata"), QStringLiteral("Cinemeta"),
+                                QStringLiteral("Default catalogs, details, and artwork."),
+                                QStringLiteral("good")));
+    } else {
+        const QUrl url(m_metadataUrl);
+        items.append(healthItem(QStringLiteral("Metadata"), QStringLiteral("Custom addon"),
+                                url.host().isEmpty() ? QStringLiteral("Manifest URL saved.")
+                                                     : QStringLiteral("Using %1").arg(url.host()),
+                                QStringLiteral("good")));
+    }
+
+    if (m_subtitleLanguage == QStringLiteral("off")) {
+        items.append(healthItem(QStringLiteral("OpenSubtitles"), QStringLiteral("Off"),
+                                QStringLiteral("Subtitle fetching is disabled."),
+                                QStringLiteral("neutral")));
+    } else {
+        items.append(healthItem(QStringLiteral("OpenSubtitles"), m_subtitleLanguage.toUpper(),
+                                QStringLiteral("Preferred subtitle language is active."),
+                                QStringLiteral("good")));
+    }
+
+    const QDateTime imdbRefresh = QSettings().value(QStringLiteral("imdb/lastRefresh")).toDateTime();
+    if (m_imdbRatings.ready()) {
+        items.append(healthItem(QStringLiteral("IMDb ratings"), QStringLiteral("Ready"),
+                                imdbRefresh.isValid()
+                                    ? QStringLiteral("Updated %1").arg(imdbRefresh.toString(QStringLiteral("yyyy-MM-dd")))
+                                    : QStringLiteral("Local cache is available."),
+                                QStringLiteral("good")));
+    } else {
+        items.append(healthItem(QStringLiteral("IMDb ratings"), QStringLiteral("Needs download"),
+                                QStringLiteral("Refresh to build the local ratings cache."),
+                                QStringLiteral("warning")));
+    }
+
+    if (m_trakt.connected()) {
+        const QString username = m_trakt.username();
+        items.append(healthItem(QStringLiteral("Trakt"), QStringLiteral("Connected"),
+                                username.isEmpty() ? QStringLiteral("Resume and Next Up sync enabled.")
+                                                   : QStringLiteral("Signed in as %1.").arg(username),
+                                QStringLiteral("good")));
+    } else if (m_trakt.authPending()) {
+        items.append(healthItem(QStringLiteral("Trakt"), QStringLiteral("Waiting"),
+                                QStringLiteral("Finish device authorization in the browser."),
+                                QStringLiteral("warning")));
+    } else if (!m_trakt.clientId().isEmpty() && !m_trakt.clientSecret().isEmpty()) {
+        items.append(healthItem(QStringLiteral("Trakt"), QStringLiteral("Ready to connect"),
+                                QStringLiteral("Credentials are saved locally."),
+                                QStringLiteral("neutral")));
+    } else {
+        items.append(healthItem(QStringLiteral("Trakt"), QStringLiteral("Optional"),
+                                QStringLiteral("Connect to sync resume progress and Next Up."),
+                                QStringLiteral("neutral")));
+    }
+
+    const QString mpv = ExternalMpvPlayer::resolvedExecutablePath();
+    items.append(healthItem(QStringLiteral("mpv"), mpv.isEmpty() ? QStringLiteral("Missing") : QStringLiteral("Available"),
+                            mpv.isEmpty() ? QStringLiteral("Install mpv or use a build that bundles it.")
+                                          : QStringLiteral("Playback executable found."),
+                            mpv.isEmpty() ? QStringLiteral("danger") : QStringLiteral("good")));
+
+    return items;
+}
 QString ApplicationController::aioStreamsUrl() const { return m_aioStreamsUrl; }
 QString ApplicationController::metadataUrl() const { return m_metadataUrl; }
 QString ApplicationController::subtitleLanguage() const { return m_subtitleLanguage; }
@@ -567,7 +653,6 @@ bool ApplicationController::mpvHdrHint() const { return m_mpvHdrHint; }
 bool ApplicationController::mpvModernz() const { return m_mpvModernz; }
 bool ApplicationController::mpvFullscreen() const { return m_mpvFullscreen; }
 QString ApplicationController::mpvExtraArgs() const { return m_mpvExtraArgs; }
-QString ApplicationController::playerMode() const { return m_playerMode; }
 QString ApplicationController::traktClientId() const { return m_trakt.clientId(); }
 QString ApplicationController::traktClientSecret() const { return m_trakt.clientSecret(); }
 QString ApplicationController::traktStatus() const { return m_trakt.statusMessage(); }
@@ -579,7 +664,6 @@ bool ApplicationController::traktAuthPending() const { return m_trakt.authPendin
 bool ApplicationController::traktBusy() const { return m_trakt.busy(); }
 bool ApplicationController::playbackActive() const { return m_playbackActive; }
 bool ApplicationController::playbackBuffering() const { return m_playbackBuffering; }
-bool ApplicationController::playbackEmbedded() const { return m_playbackEmbedded; }
 bool ApplicationController::playbackPaused() const { return m_playbackPaused; }
 QString ApplicationController::playbackTitle() const { return m_playbackTitle; }
 double ApplicationController::playbackPosition() const { return m_playbackPosition; }
@@ -698,18 +782,8 @@ void ApplicationController::clearStreams()
 
 void ApplicationController::playStream(int index)
 {
-    playStreamWithWindow(index, 0);
-}
-
-bool ApplicationController::playStreamEmbedded(int index, qulonglong windowId)
-{
-    return playStreamWithWindow(index, windowId);
-}
-
-bool ApplicationController::playStreamWithWindow(int index, qulonglong windowId)
-{
     if (index < 0 || index >= m_streams.size()) {
-        return false;
+        return;
     }
 
     const QVariantMap stream = m_streams.at(index).toMap();
@@ -747,86 +821,46 @@ bool ApplicationController::playStreamWithWindow(int index, qulonglong windowId)
         m_pendingRemoteResumePercent = 0.0;
     }
 
-    return startPlayback(playbackMedia, url, title, headers, subtitleUrls, startSeconds, startPercent, windowId);
+    startPlayback(playbackMedia, url, title, headers, subtitleUrls, startSeconds, startPercent);
 }
 
 void ApplicationController::resumeContinueWatching(const QString &key)
-{
-    resumeContinueWatchingWithWindow(key, 0);
-}
-
-bool ApplicationController::resumeContinueWatchingEmbedded(const QString &key, qulonglong windowId)
-{
-    return resumeContinueWatchingWithWindow(key, windowId);
-}
-
-bool ApplicationController::resumeContinueWatchingWithWindow(const QString &key, qulonglong windowId)
 {
     const QVariantMap entry = m_watchHistory.entry(key);
     const QVariantMap stream = entry.value(QStringLiteral("stream")).toMap();
     const QString url = stream.value(QStringLiteral("url")).toString();
     if (entry.isEmpty() || url.trimmed().isEmpty()) {
         setStatusMessage(QStringLiteral("Saved release is unavailable; choose a release from details"));
-        return false;
+        return;
     }
 
     const QString title = stream.value(QStringLiteral("title")).toString();
     const QVariantMap headers = stream.value(QStringLiteral("headers")).toMap();
     const QStringList subtitleUrls = stringListValue(entry.value(QStringLiteral("subtitleUrls")));
 
-    return startPlayback(entry, url, title, headers, subtitleUrls, m_watchHistory.positionFor(entry), 0.0, windowId);
+    startPlayback(entry, url, title, headers, subtitleUrls, m_watchHistory.positionFor(entry), 0.0);
 }
 
 bool ApplicationController::startPlayback(const QVariantMap &playbackMedia,
                                           const QString &url, const QString &title, const QVariantMap &headers,
-                                          const QStringList &subtitleUrls, double startSeconds, double startPercent,
-                                          qulonglong windowId)
+                                          const QStringList &subtitleUrls, double startSeconds, double startPercent)
 {
     // Warm the backend's tail range before/while mpv opens the file, so its
     // seek to the MKV Cues at EOF doesn't pay a cold on-demand fetch.
     prewarmStreamTail(url, headers);
 
     const QStringList extraArgs = QProcess::splitCommand(m_mpvExtraArgs);
-    const bool embedded = windowId > 0;
-
-    if (embedded && QGuiApplication::platformName() != QStringLiteral("xcb")) {
-        setPlaybackState(false, false, title);
-        const bool started = m_player.play(url, title, headers, subtitleUrls,
-                                            m_subtitleLanguage,
-                                            m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint,
-                                            m_mpvModernz, m_mpvFullscreen, extraArgs,
-                                            startSeconds, startPercent, 0);
-        if (started) {
-            m_currentPlaybackMedia = playbackMedia;
-            setStatusMessage(QStringLiteral("Embedded mpv needs X11/XWayland; using external mpv"));
-        }
-        return false;
-    }
-
-    setPlaybackState(false, embedded, title);
+    setPlaybackState(false, title);
 
     if (m_player.play(url, title, headers, subtitleUrls,
                       m_subtitleLanguage,
                       m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint,
                       m_mpvModernz, m_mpvFullscreen, extraArgs,
-                      startSeconds, startPercent, windowId)) {
+                      startSeconds, startPercent)) {
         m_currentPlaybackMedia = playbackMedia;
-        return embedded;
+        return true;
     }
 
-    if (!embedded) {
-        return false;
-    }
-
-    setStatusMessage(QStringLiteral("Embedded mpv failed; falling back to external mpv"));
-    setPlaybackState(false, false, title);
-    if (m_player.play(url, title, headers, subtitleUrls,
-                      m_subtitleLanguage,
-                      m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint,
-                      m_mpvModernz, m_mpvFullscreen, extraArgs,
-                      startSeconds, startPercent, 0)) {
-        m_currentPlaybackMedia = playbackMedia;
-    }
     return false;
 }
 
@@ -871,11 +905,10 @@ void ApplicationController::abortStreamPrewarm()
     }
 }
 
-void ApplicationController::setPlaybackState(bool active, bool embedded, const QString &title)
+void ApplicationController::setPlaybackState(bool active, const QString &title)
 {
     m_playbackActive = active;
     m_playbackBuffering = false;
-    m_playbackEmbedded = embedded;
     m_playbackPaused = false;
     m_playbackPosition = 0.0;
     m_playbackDuration = 0.0;
@@ -932,6 +965,7 @@ void ApplicationController::setAioStreamsUrl(const QString &url)
     QSettings settings;
     settings.setValue(QStringLiteral("addons/aioStreamsUrl"), trimmed);
     emit aioStreamsUrlChanged();
+    emit sourceHealthChanged();
     setStatusMessage(trimmed.isEmpty() ? QStringLiteral("AIOStreams URL cleared") : QStringLiteral("AIOStreams URL configured"));
 }
 
@@ -949,6 +983,7 @@ void ApplicationController::setMetadataUrl(const QString &url)
     QSettings settings;
     settings.setValue(QStringLiteral("addons/metadataUrl"), trimmed);
     emit metadataUrlChanged();
+    emit sourceHealthChanged();
     hydrateTraktResumeMetadata();
     setStatusMessage(trimmed.isEmpty() ? QStringLiteral("Using Cinemeta for metadata")
                                        : QStringLiteral("Metadata addon configured"));
@@ -982,6 +1017,7 @@ void ApplicationController::setSubtitleLanguage(const QString &language)
     QSettings settings;
     settings.setValue(QStringLiteral("subtitles/language"), language);
     emit subtitleLanguageChanged();
+    emit sourceHealthChanged();
     setStatusMessage(language == QStringLiteral("off")
                          ? QStringLiteral("Subtitles disabled")
                          : QStringLiteral("Subtitle language set to %1").arg(language));
@@ -1075,23 +1111,6 @@ void ApplicationController::setMpvExtraArgs(const QString &args)
     emit mpvExtraArgsChanged();
     setStatusMessage(trimmed.isEmpty() ? QStringLiteral("Custom mpv args cleared")
                                        : QStringLiteral("Custom mpv args saved"));
-}
-
-void ApplicationController::setPlayerMode(const QString &mode)
-{
-    const QString normalized = mode == QStringLiteral("embedded")
-        ? QStringLiteral("embedded")
-        : QStringLiteral("external");
-    if (m_playerMode == normalized) {
-        return;
-    }
-
-    m_playerMode = normalized;
-    QSettings().setValue(QStringLiteral("mpv/playerMode"), normalized);
-    emit playerModeChanged();
-    setStatusMessage(normalized == QStringLiteral("embedded")
-                         ? QStringLiteral("Player mode set to Embedded")
-                         : QStringLiteral("Player mode set to External"));
 }
 
 void ApplicationController::setTraktClientId(const QString &clientId)

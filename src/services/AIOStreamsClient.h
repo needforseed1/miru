@@ -8,6 +8,7 @@
 #include "BadgeMatcher.h"
 
 class QJsonObject;
+class QJsonArray;
 class QNetworkReply;
 
 class AIOStreamsClient : public QObject
@@ -20,6 +21,10 @@ public:
     void setBaseUrl(const QString &url);
     void fetchStreams(const QString &type, const QString &id);
 
+#ifdef MIRU_TESTING
+    QVariantList normalizeStreamsForTesting(const QJsonArray &streamArray, const QString &type = {}) const;
+#endif
+
 signals:
     void streamsReady(const QVariantList &streams);
     void errorOccurred(const QString &message);
@@ -28,6 +33,7 @@ private:
     void requestStreams(const QString &type, const QString &id, int attempt);
     void cancelActiveRequest();
     QString normalizedBaseUrl() const;
+    QVariantList normalizeStreams(const QJsonArray &streamArray, const QString &type) const;
     QVariantMap normalizeStream(const QJsonObject &stream) const;
     bool isPlayableStream(const QJsonObject &stream) const;
     QString detectQuality(const QString &text) const;

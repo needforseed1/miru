@@ -32,6 +32,11 @@ public:
     // Empty = Cinemeta. Used for catalogs, search and meta.
     void setBaseUrl(const QString &url);
 
+#ifdef MIRU_TESTING
+    QVariantMap normalizeMetaForTesting(const QJsonObject &meta) const;
+    QVariantList normalizeVideosForTesting(const QJsonArray &videos) const;
+#endif
+
 signals:
     void catalogsDiscovered(const QVariantList &sections);
     void catalogReady(const QString &type, const QString &catalogId, const QVariantList &items);

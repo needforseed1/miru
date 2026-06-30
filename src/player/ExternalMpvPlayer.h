@@ -7,7 +7,6 @@
 #include <QVariantMap>
 
 class QLocalSocket;
-class QProcess;
 class QJsonArray;
 
 class ExternalMpvPlayer : public QObject
@@ -16,6 +15,8 @@ class ExternalMpvPlayer : public QObject
 
 public:
     explicit ExternalMpvPlayer(QObject *parent = nullptr);
+
+    static QString resolvedExecutablePath();
 
     Q_INVOKABLE bool play(const QString &url, const QString &title,
                           const QVariantMap &headers = {},
@@ -28,8 +29,7 @@ public:
                           bool startFullscreen = true,
                           const QStringList &extraArgs = {},
                           double startSeconds = 0.0,
-                          double startPercent = 0.0,
-                          qulonglong windowId = 0);
+                          double startPercent = 0.0);
     Q_INVOKABLE void stop();
     Q_INVOKABLE void setPaused(bool paused);
     Q_INVOKABLE void seek(double seconds);
@@ -54,7 +54,6 @@ private:
     void finishPlayback();
 
     QLocalSocket *m_socket = nullptr;
-    QProcess *m_process = nullptr;
     QByteArray m_readBuffer;
     QString m_socketPath;
     QStringList m_pendingSubtitles; // added via IPC after start, off the critical path

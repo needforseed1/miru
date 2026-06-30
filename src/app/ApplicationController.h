@@ -27,6 +27,7 @@ class ApplicationController : public QObject
     Q_PROPERTY(QVariantMap selectedMeta READ selectedMeta NOTIFY selectedMetaChanged)
     Q_PROPERTY(QVariantList streams READ streams NOTIFY streamsChanged)
     Q_PROPERTY(bool streamsLoading READ streamsLoading NOTIFY streamsLoadingChanged)
+    Q_PROPERTY(QVariantList sourceHealth READ sourceHealth NOTIFY sourceHealthChanged)
     Q_PROPERTY(QString aioStreamsUrl READ aioStreamsUrl WRITE setAioStreamsUrl NOTIFY aioStreamsUrlChanged)
     Q_PROPERTY(QString metadataUrl READ metadataUrl WRITE setMetadataUrl NOTIFY metadataUrlChanged)
     Q_PROPERTY(QString subtitleLanguage READ subtitleLanguage WRITE setSubtitleLanguage NOTIFY subtitleLanguageChanged)
@@ -39,7 +40,6 @@ class ApplicationController : public QObject
     Q_PROPERTY(bool mpvModernz READ mpvModernz WRITE setMpvModernz NOTIFY mpvModernzChanged)
     Q_PROPERTY(bool mpvFullscreen READ mpvFullscreen WRITE setMpvFullscreen NOTIFY mpvFullscreenChanged)
     Q_PROPERTY(QString mpvExtraArgs READ mpvExtraArgs WRITE setMpvExtraArgs NOTIFY mpvExtraArgsChanged)
-    Q_PROPERTY(QString playerMode READ playerMode WRITE setPlayerMode NOTIFY playerModeChanged)
     Q_PROPERTY(QString traktClientId READ traktClientId WRITE setTraktClientId NOTIFY traktChanged)
     Q_PROPERTY(QString traktClientSecret READ traktClientSecret WRITE setTraktClientSecret NOTIFY traktChanged)
     Q_PROPERTY(QString traktStatus READ traktStatus NOTIFY traktChanged)
@@ -51,7 +51,6 @@ class ApplicationController : public QObject
     Q_PROPERTY(bool traktBusy READ traktBusy NOTIFY traktChanged)
     Q_PROPERTY(bool playbackActive READ playbackActive NOTIFY playbackStateChanged)
     Q_PROPERTY(bool playbackBuffering READ playbackBuffering NOTIFY playbackStateChanged)
-    Q_PROPERTY(bool playbackEmbedded READ playbackEmbedded NOTIFY playbackStateChanged)
     Q_PROPERTY(bool playbackPaused READ playbackPaused NOTIFY playbackStateChanged)
     Q_PROPERTY(QString playbackTitle READ playbackTitle NOTIFY playbackStateChanged)
     Q_PROPERTY(double playbackPosition READ playbackPosition NOTIFY playbackPositionChanged)
@@ -70,6 +69,7 @@ public:
     QVariantMap selectedMeta() const;
     QVariantList streams() const;
     bool streamsLoading() const;
+    QVariantList sourceHealth() const;
     QString aioStreamsUrl() const;
     QString metadataUrl() const;
     QString subtitleLanguage() const;
@@ -82,7 +82,6 @@ public:
     bool mpvModernz() const;
     bool mpvFullscreen() const;
     QString mpvExtraArgs() const;
-    QString playerMode() const;
     QString traktClientId() const;
     QString traktClientSecret() const;
     QString traktStatus() const;
@@ -94,7 +93,6 @@ public:
     bool traktBusy() const;
     bool playbackActive() const;
     bool playbackBuffering() const;
-    bool playbackEmbedded() const;
     bool playbackPaused() const;
     QString playbackTitle() const;
     double playbackPosition() const;
@@ -109,9 +107,7 @@ public:
     Q_INVOKABLE void loadStreams(const QString &type, const QString &id);
     Q_INVOKABLE void clearStreams();
     Q_INVOKABLE void playStream(int index);
-    Q_INVOKABLE bool playStreamEmbedded(int index, qulonglong windowId);
     Q_INVOKABLE void resumeContinueWatching(const QString &key);
-    Q_INVOKABLE bool resumeContinueWatchingEmbedded(const QString &key, qulonglong windowId);
     Q_INVOKABLE void removeContinueWatching(const QString &key);
     Q_INVOKABLE void setPendingRemoteResume(const QString &type, const QString &id, double progressPercent);
     Q_INVOKABLE void stopPlayback();
@@ -130,7 +126,6 @@ public:
     void setMpvModernz(bool enabled);
     void setMpvFullscreen(bool enabled);
     void setMpvExtraArgs(const QString &args);
-    void setPlayerMode(const QString &mode);
     void setTraktClientId(const QString &clientId);
     void setTraktClientSecret(const QString &clientSecret);
     Q_INVOKABLE void connectTrakt();
@@ -147,6 +142,7 @@ signals:
     void selectedMetaChanged();
     void streamsChanged();
     void streamsLoadingChanged();
+    void sourceHealthChanged();
     void aioStreamsUrlChanged();
     void metadataUrlChanged();
     void subtitleLanguageChanged();
@@ -159,7 +155,6 @@ signals:
     void mpvModernzChanged();
     void mpvFullscreenChanged();
     void mpvExtraArgsChanged();
-    void playerModeChanged();
     void traktChanged();
     void playbackStateChanged();
     void playbackPositionChanged();
@@ -167,13 +162,10 @@ signals:
     void statusMessageChanged();
 
 private:
-    bool playStreamWithWindow(int index, qulonglong windowId);
-    bool resumeContinueWatchingWithWindow(const QString &key, qulonglong windowId);
     bool startPlayback(const QVariantMap &playbackMedia,
                        const QString &url, const QString &title, const QVariantMap &headers,
-                       const QStringList &subtitleUrls, double startSeconds, double startPercent,
-                       qulonglong windowId);
-    void setPlaybackState(bool active, bool embedded, const QString &title = QString());
+                       const QStringList &subtitleUrls, double startSeconds, double startPercent);
+    void setPlaybackState(bool active, const QString &title = QString());
     // Warm the on-demand backend's tail range (MKV Cues live there) in parallel
     // with mpv's open, so its seek-to-EOF index read is served from a warm
     // backend cache instead of a cold ~9s Usenet fetch.
@@ -226,10 +218,8 @@ private:
     bool m_mpvModernz = true;
     bool m_mpvFullscreen = true;
     QString m_mpvExtraArgs;
-    QString m_playerMode = QStringLiteral("external");
     bool m_playbackActive = false;
     bool m_playbackBuffering = false;
-    bool m_playbackEmbedded = false;
     bool m_playbackPaused = false;
     QString m_playbackTitle;
     double m_playbackPosition = 0.0;

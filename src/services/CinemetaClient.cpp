@@ -245,6 +245,18 @@ void CinemetaClient::fallbackCatalogs()
     drainPendingSearches();
 }
 
+#ifdef MIRU_TESTING
+QVariantMap CinemetaClient::normalizeMetaForTesting(const QJsonObject &meta) const
+{
+    return normalizeMeta(meta);
+}
+
+QVariantList CinemetaClient::normalizeVideosForTesting(const QJsonArray &videos) const
+{
+    return normalizeVideos(videos);
+}
+#endif
+
 QVariantMap CinemetaClient::normalizeMeta(const QJsonObject &meta) const
 {
     QVariantMap item;
