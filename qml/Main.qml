@@ -739,7 +739,7 @@ ApplicationWindow {
 
                 SettingsCard {
                     title: "AIOStreams addon"
-                    description: "Paste your AIOStreams addon base URL or its manifest.json URL. Stored locally. Remove and re-add after changing your AIOStreams backend, since reconfiguring it gives a new addon URL."
+                    description: "Enter your AIOStreams manifest URL. Stored locally and used to find playable HTTP streams."
 
                     AddonUrlField {
                         value: appController.aioStreamsUrl
@@ -753,12 +753,12 @@ ApplicationWindow {
 
                 SettingsCard {
                     title: "Metadata addon"
-                    description: "Source for detailed metadata: per-episode IMDb/TMDB ratings, episode stills and overviews. Defaults to Cinemeta, which lacks most episode ratings. Point this at a self-hosted AIOMetadata (Stremio addon URL or manifest.json) for full TMDB episode data. Catalogs and search still use Cinemeta."
+                    description: "Leave blank to use Cinemeta. Add an AIOMetadata or other Stremio-compatible manifest URL for details, artwork, episode stills, and episode ratings."
 
                     AddonUrlField {
                         value: appController.metadataUrl
                         placeholder: "https://your-aiometadata.example/manifest.json (blank = Cinemeta)"
-                        statusOn: "AIOMetadata configured"
+                        statusOn: "Custom metadata addon configured"
                         statusOff: "Using Cinemeta (default)"
                         onSaveRequested: text => appController.metadataUrl = text
                         onRemoveRequested: appController.metadataUrl = ""
@@ -767,7 +767,7 @@ ApplicationWindow {
 
                 SettingsCard {
                     title: "Subtitles"
-                    description: "Automatic subtitles via the OpenSubtitles addon. The preferred language is fetched for each title and loaded into mpv on playback."
+                    description: "Load subtitles from the OpenSubtitles Stremio addon. Choose the preferred language for mpv."
 
                     Flow {
                         Layout.fillWidth: true
@@ -800,7 +800,7 @@ ApplicationWindow {
 
                 SettingsCard {
                     title: "Trakt"
-                    description: "Optional cross-device resume support. Create a Trakt API app, paste its client ID and client secret here, then connect your Trakt account. The app never asks for your Trakt password."
+                    description: "Sync resume progress and Next Up with Trakt. Enter a Trakt API app client ID and secret, then connect your account."
 
                     ColumnLayout {
                         Layout.fillWidth: true
@@ -811,7 +811,7 @@ ApplicationWindow {
                             id: traktClientIdField
                             Layout.fillWidth: true
                             text: appController.traktClientId
-                            placeholderText: "Trakt client ID"
+                            placeholderText: "Trakt API client ID"
                             onAccepted: appController.traktClientId = text
                             onTextEdited: appController.traktClientId = text
                         }
@@ -825,7 +825,7 @@ ApplicationWindow {
                             id: traktClientSecretField
                             Layout.fillWidth: true
                             text: appController.traktClientSecret
-                            placeholderText: "Trakt client secret"
+                            placeholderText: "Trakt API client secret"
                             echoMode: TextInput.Password
                             onAccepted: appController.traktClientSecret = text
                             onTextEdited: appController.traktClientSecret = text
@@ -859,7 +859,7 @@ ApplicationWindow {
 
                             Text {
                                 Layout.fillWidth: true
-                                text: "Open " + appController.traktVerificationUrl + " and enter:"
+                                text: "Open " + appController.traktVerificationUrl + " and enter this code:"
                                 color: Theme.textDim
                                 font.pixelSize: Theme.fSmall
                                 wrapMode: Text.WordWrap
@@ -877,7 +877,7 @@ ApplicationWindow {
                                 spacing: Theme.s12
 
                                 AppButton {
-                                    text: "Open Trakt"
+                                    text: "Open verification page"
                                     enabled: appController.traktVerificationUrl.length > 0
                                     onClicked: appController.openTraktVerificationUrl()
                                 }
@@ -907,7 +907,7 @@ ApplicationWindow {
                             }
                         }
                         AppButton {
-                            text: "Cancel"
+                            text: "Cancel connection"
                             visible: appController.traktAuthPending
                             onClicked: appController.cancelTraktAuth()
                         }
@@ -922,7 +922,7 @@ ApplicationWindow {
 
                 SettingsCard {
                     title: "IMDb ratings"
-                    description: "Real IMDb ratings for posters and episodes, built from IMDb's public dataset and cached locally. Refreshes automatically about once a week."
+                    description: "Downloads IMDb's public ratings dataset and caches scores locally for posters and episodes."
 
                     RowLayout {
                         Layout.fillWidth: true
@@ -950,7 +950,7 @@ ApplicationWindow {
                     }
 
                     SettingsCheck {
-                        text: "Show IMDb scores on posters (keeps episode ratings)"
+                        text: "Show poster scores; episode ratings stay enabled"
                         checked: appController.showPosterRatings
                         onToggled: appController.showPosterRatings = checked
                     }
@@ -958,7 +958,7 @@ ApplicationWindow {
 
                 SettingsCard {
                     title: "Display"
-                    description: "Interface zoom, applied on top of your desktop's scaling. Takes effect after restarting the app."
+                    description: "Adjust interface zoom on top of desktop scaling. Restart the app to apply changes."
 
                     Flow {
                         Layout.fillWidth: true
@@ -984,26 +984,26 @@ ApplicationWindow {
 
                 SettingsCard {
                     title: "Playback"
-                    description: "Choose embedded playback inside the app or the detached external mpv fallback. The app always passes stream URL, auth headers, subtitles and safe network options; rendering/HDR choices are configurable below. Custom args are appended last so they can override the defaults."
+                    description: "Choose embedded playback or launch mpv externally. Extra mpv arguments are appended last so they can override defaults."
 
                     Flow {
                         Layout.fillWidth: true
                         Layout.topMargin: Theme.s8
                         spacing: Theme.s8
                         ChoiceChip {
-                            label: "External"
+                            label: "External mpv"
                             current: appController.playerMode === "external"
                             onClicked: appController.playerMode = "external"
                         }
                         ChoiceChip {
-                            label: "Embedded"
+                            label: "Embedded mpv"
                             current: appController.playerMode === "embedded"
                             onClicked: appController.playerMode = "embedded"
                         }
                     }
 
                     SettingsCheck {
-                        text: "ModernZ mpv controls"
+                        text: "Use ModernZ mpv control overlay"
                         checked: appController.mpvModernz
                         onToggled: appController.mpvModernz = checked
                     }
@@ -1023,7 +1023,7 @@ ApplicationWindow {
                         onToggled: appController.mpvGpuNext = checked
                     }
                     SettingsCheck {
-                        text: "HDR/Vulkan hint (--gpu-api=vulkan --target-colorspace-hint=yes)"
+                        text: "Use Vulkan and pass HDR color-space hints (--gpu-api=vulkan --target-colorspace-hint=yes)"
                         checked: appController.mpvHdrHint
                         onToggled: appController.mpvHdrHint = checked
                     }
@@ -1037,7 +1037,7 @@ ApplicationWindow {
                             id: mpvArgsField
                             Layout.fillWidth: true
                             text: appController.mpvExtraArgs
-                            placeholderText: "Custom mpv args, e.g. --profile=high-quality --deband=yes"
+                            placeholderText: "Extra mpv arguments, e.g. --profile=high-quality --deband=yes"
                             onAccepted: appController.mpvExtraArgs = text
                         }
 

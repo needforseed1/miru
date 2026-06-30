@@ -30,6 +30,7 @@ int main(int argc, char *argv[])
         Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
 
     QGuiApplication app(argc, argv);
+    app.setApplicationDisplayName(QStringLiteral("Miru"));
     QQuickStyle::setStyle("Basic");
 
     ApplicationController controller;

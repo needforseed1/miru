@@ -1,59 +1,58 @@
-# miru
+# Miru
 
-`miru` (見る, "to watch") is an experimental native Linux desktop frontend for AIOStreams, with Cinemeta/AIOMetadata discovery, real IMDb ratings, OpenSubtitles, and external `mpv` playback.
+Miru is a native Qt 6 desktop frontend for AIOStreams. It provides
+Stremio-style browsing, metadata from Cinemeta or a compatible metadata addon,
+real IMDb ratings, OpenSubtitles integration, Trakt resume sync, and playback
+through `mpv`.
 
-The goal is a native Linux media app with Stremio/Nuvio-style browsing, Usenet/HTTP stream resolution through AIOStreams, and high-quality playback through `mpv`.
+The app is focused on direct HTTP streams from Usenet/debrid-style providers.
+It is not a torrent client.
 
 ## Status
 
-This is an early Qt 6/QML prototype.
+Miru is still an early prototype, but the main workflow is usable:
 
-Working now:
+- Browse home rails from the active metadata addon.
+- Search movies and series.
+- Open detail pages with artwork, genres, metadata, episodes, and IMDb scores.
+- Configure an AIOStreams manifest URL for playable HTTP streams.
+- Filter out torrent-style streams, magnet links, and `infoHash` entries.
+- Show ColorfulAndConcise release badges for quality, HDR/DV, audio, and source.
+- Load subtitles from the OpenSubtitles Stremio addon.
+- Track local Continue Watching progress through `mpv` IPC.
+- Optionally sync resume progress and Next Up through Trakt.
+- Play in external `mpv`, with experimental embedded mpv available on X11/XWayland.
 
-- Loads Cinemeta popular movie and series catalogs
-- Searches Cinemeta movie and series metadata
-- Details page with poster, metadata, genres, and IMDb rating
-- Real IMDb ratings on posters and per episode, from IMDb's public dataset dumps cached locally in SQLite (~64 MB)
-- Manifest-driven home rails (Popular/Trending/Top Rated/… discovered from the metadata addon)
-- Optional self-hosted AIOMetadata as the metadata + catalog source
-- Stores an AIOStreams addon URL locally (with remove/re-add)
-- Fetches streams from the configured AIOStreams addon per movie/episode
-- ColorfulAndConcise release badges (resolution, quality, HDR/DV, audio, source)
-- Filters out torrent-style streams
-- Automatic subtitles via the OpenSubtitles addon (configurable language)
-- Launches direct `http`/`https` streams in external `mpv` with auth headers
-- Resume tracking through `mpv` IPC
-- JSON watch history with Continue Watching
+Planned or incomplete:
 
-Planned next:
-
-- Stream sorting
-- More player profiles for HDR, HDR-to-SDR tonemapping, and low-power mode
-- Embedded `libmpv` later, while keeping external `mpv` available
+- Better stream sorting and filtering.
+- More playback profiles for HDR, HDR-to-SDR, and low-power playback.
+- Embedded playback polish, while keeping external `mpv` as the reliable fallback.
 
 ## Clone
 
 ```bash
-git clone https://github.com/fjordnode/miru.git
+git clone https://github.com/needforseed1/miru.git
 cd miru
 ```
 
 ## Dependencies
 
-What the app needs:
+Build dependencies:
 
 | Requirement | Why |
 | --- | --- |
-| CMake 3.21+ and a C++17 compiler | Build the project |
-| Qt 6.5+ Base (Core, Gui, Network, SQL) | Core app + networking |
-| Qt 6.5+ Declarative (Qt Quick, Quick Controls 2, Quick Layouts, **QtQuick.Effects**) | QML UI (Effects/`MultiEffect` is used for poster shadows/rounding) |
-| Qt image format plugins (**WebP**) | Cinemeta serves WebP posters/backgrounds; without it artwork falls back to placeholders |
-| zlib | Decompress the IMDb dataset dumps for episode ratings |
-| `mpv` on `PATH` | Playback |
+| CMake 3.21+ and a C++17 compiler | Build system and C++ app code |
+| Qt 6.5+ Base | Core, GUI, networking, SQL |
+| Qt 6.5+ Declarative | Qt Quick, Quick Controls 2, Layouts, Effects |
+| zlib | Decompress IMDb public TSV datasets |
 
-The build-time packages (`-dev`/`-devel`) are only needed where you compile.
-The WebP image plugin and `mpv` are runtime requirements and must also be
-present on the machine that actually runs the app.
+Runtime dependencies:
+
+| Requirement | Why |
+| --- | --- |
+| Qt WebP image plugin | Cinemeta artwork is often WebP |
+| `mpv` on `PATH`, or bundled `mpv` | Video playback |
 
 ### Debian 13 / Ubuntu
 
@@ -91,9 +90,8 @@ sudo pacman -S \
   mpv
 ```
 
-On Fedora and Arch, the Qt Quick Controls/Layouts/Effects QML modules ship
-inside `qt6-qtdeclarative-devel` / `qt6-declarative`, so no extra packages are
-needed for them.
+On Fedora and Arch, the Qt Quick Controls, Layouts, and Effects modules ship
+with the Qt declarative packages.
 
 ## Build
 
@@ -102,43 +100,84 @@ cmake -S . -B build
 cmake --build build
 ```
 
-Run from the build directory output:
+Run the development build:
 
 ```bash
 ./build/stremio-linux
 ```
 
-## Display scaling
+The executable target is still named `stremio-linux`; the UI and app display
+name are `Miru`.
 
-The app honours your desktop's scaling, including fractional Wayland scales
-(1.25, 1.5, …). For the crispest result, run it natively on Wayland:
+### macOS Bundle
 
-```bash
-QT_QPA_PLATFORM=wayland ./build/stremio-linux
-```
-
-For a manual override, use `Settings → Display` to pick an interface zoom
-(applied via `QT_SCALE_FACTOR` on the next launch), or set it yourself:
+For macOS app bundle builds, use a separate build directory:
 
 ```bash
-QT_SCALE_FACTOR=1.25 ./build/stremio-linux
+cmake -S . -B build-macos -DCMAKE_BUILD_TYPE=Release -DMIRU_BUNDLED_MPV=/path/to/mpv
+cmake --build build-macos
 ```
 
-## Configure AIOStreams
+See `docs/macos-build.md` for packaging notes.
 
-Open `Settings` in the app and paste your AIOStreams addon URL.
+## Settings
 
-The app accepts either the addon base URL or a `manifest.json` URL. For example:
+### AIOStreams Addon
+
+Paste your AIOStreams manifest URL in Settings. Miru stores it locally and uses
+it to fetch playable HTTP streams for each movie or episode.
+
+The app accepts a base addon URL or a `manifest.json` URL, for example:
 
 ```text
 https://example.invalid/manifest.json
 ```
 
-The URL is stored locally using Qt settings.
+### Metadata Addon
+
+Leave the metadata URL blank to use Cinemeta. You can also use AIOMetadata or
+another Stremio-compatible metadata addon for richer details, artwork, episode
+stills, and episode ratings.
+
+### Subtitles
+
+Subtitles are loaded from the OpenSubtitles Stremio addon. Choose a preferred
+language in Settings, or turn subtitles off.
+
+### Trakt
+
+Trakt is optional. Add a Trakt API app client ID and secret, then connect your
+account to sync resume progress and Next Up across devices.
+
+### IMDb Ratings
+
+Miru downloads IMDb's public ratings datasets, builds a local SQLite cache, and
+uses it for poster scores and episode scores. Refreshes are local after the
+dataset download.
+
+### Display
+
+Miru honors desktop scaling, including fractional Wayland scales. The Settings
+page also has an interface zoom option, applied via `QT_SCALE_FACTOR` on the
+next launch.
+
+For a native Wayland run:
+
+```bash
+QT_QPA_PLATFORM=wayland ./build/stremio-linux
+```
+
+For a manual scale override:
+
+```bash
+QT_SCALE_FACTOR=1.25 ./build/stremio-linux
+```
 
 ## Playback
 
-The app launches external `mpv` and always passes the stream URL, auth headers, subtitles, IPC socket, and network-safe direct-stream options:
+Miru launches direct `http` and `https` streams in `mpv`. It passes the stream
+URL, required provider auth headers, subtitles, an IPC socket, and network-safe
+direct-stream options:
 
 ```text
 --ytdl=no
@@ -147,37 +186,42 @@ The app launches external `mpv` and always passes the stream URL, auth headers, 
 --network-timeout=60
 ```
 
-Rendering choices are configurable in Settings:
+Playback options in Settings:
 
-- Hardware decoding adds `--hwdec=auto-safe`.
-- gpu-next adds `--vo=gpu-next`.
-- HDR/Vulkan hint adds `--gpu-api=vulkan --target-colorspace-hint=yes`.
-- Custom mpv args are appended last so users can override app defaults.
+- External or embedded mpv mode.
+- ModernZ mpv control overlay.
+- Start external mpv fullscreen.
+- Hardware decoding with `--hwdec=auto-safe`.
+- gpu-next renderer with `--vo=gpu-next`.
+- HDR/Vulkan hint with `--gpu-api=vulkan --target-colorspace-hint=yes`.
+- Extra mpv arguments appended last, so they can override defaults.
 
-Only streams with direct `http` or `https` URLs are passed to `mpv`.
+Embedded playback currently requires X11/XWayland. If embedded playback is not
+available, Miru falls back to external `mpv`.
 
-Playback progress is captured over `mpv` IPC and stored locally in a small JSON watch-history file. Continue Watching resumes by title/episode, not by stream URL, so a newer debrid/Usenet link can resume from the same point.
+## Continue Watching
 
-Torrent streams are intentionally ignored:
+Local progress is captured through `mpv` IPC and stored in a small JSON watch
+history file. Continue Watching resumes by movie or episode identity, not by
+stream URL, so a fresh debrid/Usenet link can resume from the same point.
 
-- `infoHash` streams are rejected
-- magnet links are rejected
-- streams without a playable URL are rejected
+When Trakt is connected, resume rows and Next Up come from Trakt instead.
 
 ## Project Layout
 
 ```text
 src/app/        Application controller exposed to QML
-src/services/   Cinemeta and AIOStreams network clients
-src/player/     External mpv launcher
+src/services/   Cinemeta, AIOStreams, subtitles, IMDb, and Trakt clients
+src/player/     External and embedded mpv helpers
 qml/            Qt Quick UI
+resources/      Release badge data and bundled mpv UI resources
 docs/           Planning and dependency notes
 ```
 
 ## Notes
 
-- This is not affiliated with Stremio, Cinemeta, AIOStreams, or mpv.
-- Cinemeta is used for discovery metadata.
-- AIOStreams is the only stream provider target for now.
+- Miru is not affiliated with Stremio, Cinemeta, AIOStreams, OpenSubtitles,
+  Trakt, IMDb, or mpv.
+- AIOStreams is the stream provider target for now.
 - Usenet/debrid-style HTTP streams are the intended source type.
-- Embedded `libmpv` is planned later, but external `mpv` remains the quality fallback.
+- External `mpv` remains supported even as embedded playback improves.
