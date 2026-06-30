@@ -7,8 +7,6 @@ on:
 jobs:
   build-test:
     runs-on: ubuntu-latest
-    env:
-      QT_VERSION: 6.8.3
 
     steps:
       - name: Check out repository
@@ -23,19 +21,16 @@ jobs:
             libgl1-mesa-dev \
             libxkbcommon-dev \
             mpv \
-            python3-pip \
             zlib1g-dev
 
       - name: Install Qt
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install aqtinstall
-          python3 -m aqt install-qt linux desktop "$QT_VERSION" gcc_64 -O "$RUNNER_TEMP/qt" --modules qtimageformats
-          echo "QT_ROOT=$RUNNER_TEMP/qt/$QT_VERSION/gcc_64" >> "$GITHUB_ENV"
-          echo "$RUNNER_TEMP/qt/$QT_VERSION/gcc_64/bin" >> "$GITHUB_PATH"
+        uses: jurplel/install-qt-action@v4.3.1
+        with:
+          version: '6.8.*'
+          modules: 'qtimageformats'
 
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_PREFIX_PATH="$QT_ROOT"
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
 
       - name: Build
         run: cmake --build build --parallel
