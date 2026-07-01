@@ -1109,7 +1109,7 @@ ApplicationWindow {
         id: preparingOverlay
         anchors.fill: parent
         z: 40
-        visible: appController.playbackBuffering
+        visible: appController.playbackBuffering && !appController.playbackActive
         opacity: visible ? 1 : 0
 
         Behavior on opacity {
