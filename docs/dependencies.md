@@ -11,11 +11,11 @@ The app is a Qt 6/QML C++ project and needs Qt development packages at configure
   - Qt Declarative: Qt Quick, Quick Controls 2, Quick Layouts, QtQuick.Effects
 - Qt image format plugins (WebP) — Cinemeta serves WebP poster/background art; without this plugin posters fall back to placeholders
 - zlib — decompresses the IMDb dataset dumps used for per-episode ratings
-- `mpv`
+- Bundled `mpv`, or `mpv` on `PATH`
 
 The `-dev`/`-devel` packages are only needed where you compile. The WebP image
-plugin and `mpv` are runtime requirements and must also be installed on the
-machine that runs the app.
+plugin and `mpv` runtime are needed where the app runs. Packaged builds can
+bundle `mpv`; developer builds can still use `mpv` from `PATH`.
 
 ## Debian/Ubuntu
 
