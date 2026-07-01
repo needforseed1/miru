@@ -308,6 +308,7 @@ ApplicationController::ApplicationController(QObject *parent)
 
     connect(&m_player, &ExternalMpvPlayer::errorOccurred, this, [this](const QString &message) {
         m_playbackBuffering = false;
+        abortStreamProbe();
         abortStreamPrewarm();
         emit playbackStateChanged();
         setStatusMessage(message);
@@ -438,6 +439,7 @@ QVariantMap ApplicationController::mediaForStreamRequest(const QString &type, co
             media.insert(QStringLiteral("name"), m_selectedMeta.value(QStringLiteral("name")).toString());
             media.insert(QStringLiteral("poster"), m_selectedMeta.value(QStringLiteral("poster")).toString());
             media.insert(QStringLiteral("background"), m_selectedMeta.value(QStringLiteral("background")).toString());
+            media.insert(QStringLiteral("logo"), m_selectedMeta.value(QStringLiteral("logo")).toString());
             for (const QVariant &entry : m_selectedMeta.value(QStringLiteral("videos")).toList()) {
                 const QVariantMap video = entry.toMap();
                 if (video.value(QStringLiteral("season")).toInt() == season
@@ -454,6 +456,7 @@ QVariantMap ApplicationController::mediaForStreamRequest(const QString &type, co
             media.insert(QStringLiteral("name"), m_selectedMeta.value(QStringLiteral("name")).toString());
             media.insert(QStringLiteral("poster"), m_selectedMeta.value(QStringLiteral("poster")).toString());
             media.insert(QStringLiteral("background"), m_selectedMeta.value(QStringLiteral("background")).toString());
+            media.insert(QStringLiteral("logo"), m_selectedMeta.value(QStringLiteral("logo")).toString());
         }
     }
 
@@ -478,6 +481,9 @@ QVariantMap ApplicationController::currentPlaybackMedia(const QVariantMap &strea
     }
     if (stringValue(media, QStringLiteral("background")).isEmpty()) {
         media.insert(QStringLiteral("background"), m_selectedMeta.value(QStringLiteral("background")).toString());
+    }
+    if (stringValue(media, QStringLiteral("logo")).isEmpty()) {
+        media.insert(QStringLiteral("logo"), m_selectedMeta.value(QStringLiteral("logo")).toString());
     }
     if (media.value(QStringLiteral("type")).toString() == QStringLiteral("series")
         && stringValue(media, QStringLiteral("thumbnail")).isEmpty()) {
@@ -706,6 +712,7 @@ bool ApplicationController::playbackActive() const { return m_playbackActive; }
 bool ApplicationController::playbackBuffering() const { return m_playbackBuffering; }
 bool ApplicationController::playbackPaused() const { return m_playbackPaused; }
 QString ApplicationController::playbackTitle() const { return m_playbackTitle; }
+QVariantMap ApplicationController::playbackMedia() const { return m_currentPlaybackMedia; }
 double ApplicationController::playbackPosition() const { return m_playbackPosition; }
 double ApplicationController::playbackDuration() const { return m_playbackDuration; }
 
@@ -885,23 +892,109 @@ bool ApplicationController::startPlayback(const QVariantMap &playbackMedia,
                                           const QString &url, const QString &title, const QVariantMap &headers,
                                           const QStringList &subtitleUrls, double startSeconds, double startPercent)
 {
-    // Warm the backend's tail range before/while mpv opens the file, so its
-    // seek to the MKV Cues at EOF doesn't pay a cold on-demand fetch.
-    prewarmStreamTail(url, headers);
-
-    const QStringList extraArgs = QProcess::splitCommand(m_mpvExtraArgs);
-    setPlaybackState(false, title);
-
-    if (m_player.play(url, title, headers, subtitleUrls,
-                      m_subtitleLanguage,
-                      m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint,
-                      m_mpvModernz, m_mpvFullscreen, extraArgs,
-                      startSeconds, startPercent)) {
-        m_currentPlaybackMedia = playbackMedia;
-        return true;
+    const QString trimmed = url.trimmed();
+    if (trimmed.isEmpty()) {
+        setStatusMessage(QStringLiteral("Cannot play an empty stream URL"));
+        return false;
     }
 
-    return false;
+    const int generation = ++m_playbackStartGeneration;
+    const QStringList extraArgs = QProcess::splitCommand(m_mpvExtraArgs);
+    m_currentPlaybackMedia = playbackMedia;
+    setPlaybackState(false, title);
+    m_playbackBuffering = true;
+    emit playbackStateChanged();
+    setStatusMessage(QStringLiteral("Preparing stream…"));
+
+    abortStreamProbe();
+    // Warm the backend's tail range while Miru shows the preparation screen, so
+    // mpv's later seek to MKV Cues at EOF has a better chance of hitting cache.
+    prewarmStreamTail(trimmed, headers);
+
+    QNetworkRequest request{QUrl(trimmed)};
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("AIOStreamsLinux/0.1"));
+    request.setRawHeader("Range", "bytes=0-1048575");
+    for (auto it = headers.constBegin(); it != headers.constEnd(); ++it) {
+        const QString value = it.value().toString();
+        if (shouldForwardPlaybackHeader(it.key(), value)) {
+            request.setRawHeader(it.key().trimmed().toUtf8(), value.trimmed().toUtf8());
+        }
+    }
+
+    QNetworkReply *reply = m_streamProbe.get(request);
+    m_streamProbeReply = reply;
+
+    auto failPreparation = [this, generation, reply](const QString &message) {
+        if (generation != m_playbackStartGeneration || m_streamProbeReply != reply) {
+            return;
+        }
+        m_streamProbeReply = nullptr;
+        reply->disconnect(this);
+        reply->abort();
+        reply->deleteLater();
+        abortStreamPrewarm();
+        m_playbackBuffering = false;
+        emit playbackStateChanged();
+        setStatusMessage(message);
+    };
+
+    auto launchPlayback = [this, generation, reply, trimmed, title, headers, subtitleUrls,
+                           extraArgs, startSeconds, startPercent]() {
+        if (generation != m_playbackStartGeneration || m_streamProbeReply != reply) {
+            return;
+        }
+        m_streamProbeReply = nullptr;
+        reply->disconnect(this);
+        reply->abort();
+        reply->deleteLater();
+
+        if (!m_player.play(trimmed, title, headers, subtitleUrls,
+                           m_subtitleLanguage,
+                           m_mpvHardwareDecoding, m_mpvGpuNext, m_mpvHdrHint,
+                           m_mpvModernz, m_mpvFullscreen, extraArgs,
+                           startSeconds, startPercent)) {
+            m_playbackBuffering = false;
+            abortStreamPrewarm();
+            emit playbackStateChanged();
+        }
+    };
+
+    connect(reply, &QNetworkReply::readyRead, this, [reply, launchPlayback]() {
+        const QByteArray bytes = reply->readAll();
+        if (bytes.isEmpty()) {
+            return;
+        }
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (status >= 400) {
+            return;
+        }
+        launchPlayback();
+    });
+
+    connect(reply, &QNetworkReply::finished, this, [this, generation, reply, launchPlayback, failPreparation]() {
+        if (generation != m_playbackStartGeneration || m_streamProbeReply != reply) {
+            reply->deleteLater();
+            return;
+        }
+        const QByteArray bytes = reply->readAll();
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (reply->error() == QNetworkReply::NoError && (status == 0 || status < 400) && !bytes.isEmpty()) {
+            launchPlayback();
+            return;
+        }
+        const QString detail = reply->error() == QNetworkReply::NoError
+            ? QStringLiteral("HTTP %1").arg(status)
+            : reply->errorString();
+        failPreparation(QStringLiteral("Stream did not become ready: %1").arg(detail));
+    });
+
+    QTimer::singleShot(30000, this, [this, generation, reply, failPreparation]() {
+        if (generation == m_playbackStartGeneration && m_streamProbeReply == reply) {
+            failPreparation(QStringLiteral("Stream did not become ready within 30 seconds"));
+        }
+    });
+
+    return true;
 }
 
 void ApplicationController::prewarmStreamTail(const QString &url, const QVariantMap &headers)
@@ -945,6 +1038,17 @@ void ApplicationController::abortStreamPrewarm()
     }
 }
 
+void ApplicationController::abortStreamProbe()
+{
+    if (m_streamProbeReply) {
+        QNetworkReply *reply = m_streamProbeReply;
+        m_streamProbeReply = nullptr;
+        reply->disconnect(this);
+        reply->abort();
+        reply->deleteLater();
+    }
+}
+
 void ApplicationController::setPlaybackState(bool active, const QString &title)
 {
     m_playbackActive = active;
@@ -959,6 +1063,8 @@ void ApplicationController::setPlaybackState(bool active, const QString &title)
 
 void ApplicationController::stopPlayback()
 {
+    ++m_playbackStartGeneration;
+    abortStreamProbe();
     abortStreamPrewarm();
     if (m_playbackBuffering && !m_playbackActive) {
         m_playbackBuffering = false;

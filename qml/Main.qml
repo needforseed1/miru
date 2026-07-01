@@ -22,6 +22,18 @@ ApplicationWindow {
     property string pendingRemoveResumeTitle: ""
 
     readonly property bool isSeries: detailsItem && detailsItem.type === "series"
+    readonly property var preparingMedia: appController.playbackMedia || ({})
+    readonly property string preparingArtwork: preparingMedia.background || preparingMedia.thumbnail
+                                                || preparingMedia.episodeThumbnail || preparingMedia.poster || ""
+    readonly property string preparingLogo: preparingMedia.logo || ""
+    readonly property string preparingTitle: preparingMedia.name || appController.playbackTitle || "Preparing stream"
+    readonly property string preparingSubtitle: {
+        if (preparingMedia.type === "series" && preparingMedia.season > 0 && preparingMedia.episode > 0) {
+            const episode = "S" + preparingMedia.season + " · E" + preparingMedia.episode
+            return preparingMedia.episodeTitle ? episode + " · " + preparingMedia.episodeTitle : episode
+        }
+        return ""
+    }
 
     // "S1 · E1" label for the selected episode, derived from "ttID:season:episode"
     readonly property string episodeLabel: {
@@ -1090,6 +1102,115 @@ ApplicationWindow {
             }
         }
 
+    }
+
+    // ===== Playback preparation ===========================================
+    Item {
+        id: preparingOverlay
+        anchors.fill: parent
+        z: 40
+        visible: appController.playbackBuffering && !appController.playbackActive
+        opacity: visible ? 1 : 0
+
+        Behavior on opacity {
+            NumberAnimation { duration: Theme.durMed }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+            hoverEnabled: true
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            color: Theme.bg
+        }
+
+        Image {
+            anchors.fill: parent
+            source: root.preparingArtwork
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            opacity: 0.42
+            visible: source != ""
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: "#ee090a10" }
+                GradientStop { position: 0.46; color: "#aa090a10" }
+                GradientStop { position: 1.0; color: "#f6090a10" }
+            }
+        }
+
+        ColumnLayout {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - Theme.s40 * 2, 560)
+            spacing: Theme.s20
+
+            Image {
+                id: preparingLogoImage
+                Layout.alignment: Qt.AlignHCenter
+                Layout.maximumWidth: Math.min(420, preparingOverlay.width - Theme.s40 * 2)
+                Layout.maximumHeight: 160
+                source: root.preparingLogo
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                visible: source != ""
+
+                SequentialAnimation on opacity {
+                    running: preparingOverlay.visible && preparingLogoImage.visible
+                    loops: Animation.Infinite
+                    NumberAnimation { from: 0.78; to: 1.0; duration: 900; easing.type: Easing.InOutSine }
+                    NumberAnimation { from: 1.0; to: 0.78; duration: 900; easing.type: Easing.InOutSine }
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                visible: root.preparingLogo === ""
+                text: root.preparingTitle
+                color: Theme.text
+                font.pixelSize: Theme.fH1
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
+            }
+
+            Text {
+                Layout.fillWidth: true
+                visible: root.preparingSubtitle !== ""
+                text: root.preparingSubtitle
+                color: Theme.textDim
+                font.pixelSize: Theme.fTitle
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+                maximumLineCount: 1
+                elide: Text.ElideRight
+            }
+
+            RowLayout {
+                Layout.alignment: Qt.AlignHCenter
+                spacing: Theme.s12
+
+                BusyIndicator {
+                    Layout.preferredWidth: 24
+                    Layout.preferredHeight: 24
+                    running: preparingOverlay.visible
+                }
+
+                Text {
+                    text: "Preparing stream"
+                    color: Theme.textDim
+                    font.pixelSize: Theme.fBody
+                    font.bold: true
+                }
+            }
+        }
     }
 
     // ===== Status bar =======================================================

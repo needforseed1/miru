@@ -3,6 +3,7 @@
 #include <QNetworkAccessManager>
 #include <QObject>
 #include <QSet>
+#include <QTimer>
 #include <QVariantList>
 #include <QVariantMap>
 
@@ -53,6 +54,7 @@ class ApplicationController : public QObject
     Q_PROPERTY(bool playbackBuffering READ playbackBuffering NOTIFY playbackStateChanged)
     Q_PROPERTY(bool playbackPaused READ playbackPaused NOTIFY playbackStateChanged)
     Q_PROPERTY(QString playbackTitle READ playbackTitle NOTIFY playbackStateChanged)
+    Q_PROPERTY(QVariantMap playbackMedia READ playbackMedia NOTIFY playbackStateChanged)
     Q_PROPERTY(double playbackPosition READ playbackPosition NOTIFY playbackPositionChanged)
     Q_PROPERTY(double playbackDuration READ playbackDuration NOTIFY playbackPositionChanged)
     Q_PROPERTY(bool loading READ loading NOTIFY loadingChanged)
@@ -95,6 +97,7 @@ public:
     bool playbackBuffering() const;
     bool playbackPaused() const;
     QString playbackTitle() const;
+    QVariantMap playbackMedia() const;
     double playbackPosition() const;
     double playbackDuration() const;
     bool loading() const;
@@ -171,6 +174,7 @@ private:
     // backend cache instead of a cold ~9s Usenet fetch.
     void prewarmStreamTail(const QString &url, const QVariantMap &headers);
     void abortStreamPrewarm();
+    void abortStreamProbe();
     void setLoading(bool loading);
     void setStreamsLoading(bool loading);
     void setStatusMessage(const QString &message);
@@ -190,6 +194,9 @@ private:
     ExternalMpvPlayer m_player;
     QNetworkAccessManager m_streamPrewarm;
     QNetworkReply *m_streamPrewarmReply = nullptr;
+    QNetworkAccessManager m_streamProbe;
+    QNetworkReply *m_streamProbeReply = nullptr;
+    int m_playbackStartGeneration = 0;
 
     QVariantList m_homeSections; // [{ id, type, title, items }]
     QVariantList m_searchResults;
