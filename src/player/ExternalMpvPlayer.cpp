@@ -146,7 +146,10 @@ bool ExternalMpvPlayer::play(const QString &url, const QString &title,
     launchOptions.enableGpuNext = enableGpuNext;
     launchOptions.enableHdrHint = enableHdrHint;
     launchOptions.enableModernz = enableModernz;
-    launchOptions.startFullscreen = startFullscreen;
+    // Do not create mpv's fullscreen window before the first frame. Miru keeps
+    // showing the preparation screen, then fullscreen is applied over IPC once
+    // mpv reports actual playback.
+    launchOptions.startFullscreen = false;
     launchOptions.extraArgs = extraArgs;
     launchOptions.startSeconds = startSeconds;
     launchOptions.startPercent = startPercent;
@@ -158,6 +161,7 @@ bool ExternalMpvPlayer::play(const QString &url, const QString &title,
     const QStringList args = buildMpvArguments(launchOptions);
 
     m_preferredSubtitleLanguage = subtitleLanguage.trimmed();
+    m_fullscreenAfterStart = startFullscreen;
 
     // External subtitles (OpenSubtitles) are NOT passed as --sub-file: mpv loads
     // those during the initial file open and blocks the first frame on them
@@ -225,6 +229,7 @@ void ExternalMpvPlayer::resetWatcher(bool emitFinished)
     m_paused = false;
     m_finishEmitted = false;
     m_playingEmitted = false;
+    m_fullscreenAfterStart = false;
     m_subtitleSelected = false;
     m_progressTimer.invalidate();
 }
@@ -330,6 +335,9 @@ void ExternalMpvPlayer::handleReadyRead()
                     // network open/buffering delay.
                     if (!m_playingEmitted) {
                         m_playingEmitted = true;
+                        if (m_fullscreenAfterStart) {
+                            sendCommand(QJsonArray{QStringLiteral("set_property"), QStringLiteral("fullscreen"), true});
+                        }
                         emit playbackPlaying();
                     }
                 } else if (id == 2) {

@@ -65,6 +65,7 @@ private:
     bool m_paused = false;
     bool m_finishEmitted = false;
     bool m_playingEmitted = false;
+    bool m_fullscreenAfterStart = false;
     bool m_subtitleSelected = false;
     QElapsedTimer m_progressTimer;
 };
