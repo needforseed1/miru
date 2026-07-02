@@ -63,6 +63,7 @@ qt_add_resources(miru "appresources"
     PREFIX "/"
     FILES
         resources/Sterzeck_badge.json
+        resources/fonts/InterVariable.ttf
 )
 
 set(MIRU_MPV_RESOURCES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/mpv")

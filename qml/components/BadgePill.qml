@@ -2,7 +2,8 @@ import QtQuick
 import StremioLinux
 
 // Bordered badge in the "ColorfulAndConcise" style: dark/transparent fill,
-// a colored outline, and a short label.
+// a colored outline, and a short label. Colors come from the badge JSON and
+// are preserved verbatim — only the shell is styled here.
 Rectangle {
     id: root
 
@@ -11,9 +12,9 @@ Rectangle {
     property color outlineColor: "#888888"
     property color textColor: "#FFFFFF"
 
-    implicitWidth: text.implicitWidth + Theme.s12
-    implicitHeight: 22
-    radius: Theme.rSm
+    implicitWidth: text.implicitWidth + Theme.s12 + 2
+    implicitHeight: 21
+    radius: 6
     color: bgColor
     border.width: 1
     border.color: outlineColor
@@ -24,6 +25,7 @@ Rectangle {
         text: root.label
         color: root.textColor
         font.pixelSize: Theme.fTiny
-        font.bold: true
+        font.weight: Font.DemiBold
+        font.letterSpacing: 0.4
     }
 }

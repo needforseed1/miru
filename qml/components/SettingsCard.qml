@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import StremioLinux
 
-// A settings card: standard shell with an optional title + description and a
+// A settings card: glass shell with an optional title + description and a
 // content slot. Auto-sizes to its content, so callers don't repeat the
 // Rectangle/anchor/implicitHeight boilerplate.
 Rectangle {
@@ -18,10 +18,10 @@ Rectangle {
     Layout.leftMargin: Theme.s32
     Layout.preferredHeight: body.implicitHeight + Theme.s24 * 2
 
-    radius: Theme.rLg
-    color: Theme.surface
+    radius: Theme.rXl
+    color: Qt.rgba(1, 1, 1, 0.032)
     border.width: 1
-    border.color: Theme.line
+    border.color: Qt.rgba(1, 1, 1, 0.07)
 
     readonly property color statusColor: {
         switch (card.statusState) {
@@ -51,19 +51,26 @@ Rectangle {
                 text: card.title
                 color: Theme.text
                 font.pixelSize: Theme.fTitle
-                font.bold: true
+                font.weight: Font.DemiBold
                 elide: Text.ElideRight
             }
 
+            // status dot with a soft halo ring
             Rectangle {
                 visible: card.statusState.length > 0
-                Layout.preferredWidth: 10
-                Layout.preferredHeight: 10
+                Layout.preferredWidth: 18
+                Layout.preferredHeight: 18
                 Layout.alignment: Qt.AlignTop
-                radius: 5
-                color: card.statusColor
-                border.width: 1
-                border.color: Qt.rgba(card.statusColor.r, card.statusColor.g, card.statusColor.b, 0.65)
+                radius: 9
+                color: Theme.alpha(card.statusColor, 0.15)
+
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 8
+                    height: 8
+                    radius: 4
+                    color: card.statusColor
+                }
             }
         }
 
@@ -73,6 +80,7 @@ Rectangle {
             text: card.description
             color: Theme.textDim
             font.pixelSize: Theme.fSmall
+            lineHeight: 1.25
             wrapMode: Text.WordWrap
         }
     }

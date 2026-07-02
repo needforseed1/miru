@@ -36,10 +36,11 @@ Item {
         scale: hover.hovered ? 1.03 : 1.0
         radius: Theme.rLg
         color: Theme.surface
-        border.color: hover.hovered ? Theme.accent : Theme.line
-        border.width: 1
+        border.color: hover.hovered ? Theme.alpha(Theme.accentBright, 0.85) : Qt.rgba(1, 1, 1, 0.08)
+        border.width: hover.hovered ? 2 : 1
         clip: true
-        Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutQuad } }
+        Behavior on scale { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
+        Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
 
         Image {
             anchors.fill: parent
@@ -54,18 +55,19 @@ Item {
             text: (root.item.name || "?").charAt(0).toUpperCase()
             color: Theme.textMute
             font.pixelSize: 48
-            font.bold: true
+            font.weight: Font.Bold
         }
 
+        // legibility scrim behind the title block
         Rectangle {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            height: Math.min(parent.height, 92)
+            height: Math.min(parent.height, 96)
             gradient: Gradient {
                 GradientStop { position: 0.0; color: "transparent" }
-                GradientStop { position: 0.55; color: "#bb05070d" }
-                GradientStop { position: 1.0; color: "#ee05070d" }
+                GradientStop { position: 0.5; color: "#b307070c" }
+                GradientStop { position: 1.0; color: "#f207070c" }
             }
         }
 
@@ -74,9 +76,9 @@ Item {
             anchors.top: parent.top
             anchors.right: parent.right
             anchors.margins: Theme.s8
-            width: 30
-            height: 30
-            text: "X"
+            width: 28
+            height: 28
+            text: "✕"
             visible: root.removable
             enabled: root.removeVisible
             opacity: root.removeVisible ? 1.0 : 0.0
@@ -86,28 +88,37 @@ Item {
             contentItem: Text {
                 text: removeButton.text
                 color: Theme.text
-                font.pixelSize: Theme.fSmall
-                font.bold: true
+                font.pixelSize: Theme.fTiny
+                font.weight: Font.Bold
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
             background: Rectangle {
                 radius: width / 2
-                color: removeButton.hovered ? Theme.danger : "#bb0f111b"
-                border.color: removeButton.hovered ? Theme.danger : Theme.line
+                color: removeButton.hovered ? Theme.danger : "#cc0a0b12"
+                border.width: 1
+                border.color: removeButton.hovered ? Theme.danger : Qt.rgba(1, 1, 1, 0.14)
+                Behavior on color { ColorAnimation { duration: Theme.durFast } }
             }
+
+            HoverHandler { cursorShape: Qt.PointingHandCursor }
         }
 
+        // progress: brand gradient bar over a faint track
         Rectangle {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            height: 2
-            color: "transparent"
+            height: 3
+            color: Qt.rgba(1, 1, 1, 0.12)
             Rectangle {
                 width: parent.width * root.progress
                 height: parent.height
-                color: Theme.accentBright
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0.0; color: Theme.accent }
+                    GradientStop { position: 1.0; color: Theme.accent2 }
+                }
             }
         }
 
@@ -116,7 +127,7 @@ Item {
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             anchors.margins: Theme.s12
-            anchors.bottomMargin: Theme.s8
+            anchors.bottomMargin: Theme.s12
             spacing: 3
 
             Text {
@@ -124,9 +135,10 @@ Item {
                 text: root.item.name || "Untitled"
                 color: hover.hovered ? Theme.accentBright : Theme.text
                 font.pixelSize: Theme.fBody
-                font.bold: true
+                font.weight: Font.DemiBold
                 maximumLineCount: 1
                 elide: Text.ElideRight
+                Behavior on color { ColorAnimation { duration: Theme.durFast } }
             }
 
             Text {

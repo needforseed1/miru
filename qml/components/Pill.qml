@@ -1,6 +1,7 @@
 import QtQuick
 import StremioLinux
 
+// Rounded-full metadata tag tinted from a single accent color.
 Rectangle {
     id: root
 
@@ -8,19 +9,20 @@ Rectangle {
     property color accentColor: Theme.line
     property bool filled: false
 
-    implicitWidth: label.implicitWidth + Theme.s16
+    implicitWidth: label.implicitWidth + Theme.s16 + 4
     implicitHeight: 24
-    radius: Theme.rSm
-    color: filled ? accentColor : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.16)
+    radius: Theme.rPill
+    color: filled ? accentColor : Theme.alpha(accentColor, 0.13)
     border.width: filled ? 0 : 1
-    border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.45)
+    border.color: Theme.alpha(accentColor, 0.38)
 
     Text {
         id: label
         anchors.centerIn: parent
         text: root.text
         font.pixelSize: Theme.fTiny
-        font.bold: true
-        color: root.filled ? "white" : Qt.lighter(root.accentColor, 1.4)
+        font.weight: Font.DemiBold
+        font.letterSpacing: 0.3
+        color: root.filled ? "white" : Qt.lighter(root.accentColor, 1.45)
     }
 }

@@ -1,8 +1,8 @@
 import QtQuick
 import StremioLinux
 
-// Lightweight "searching" indicator: three accent dots pulsing in sequence
-// with an optional label.
+// Lightweight "searching" indicator: three dots sweeping through the brand
+// gradient colors, with an optional label.
 Row {
     id: root
 
@@ -14,19 +14,20 @@ Row {
         anchors.verticalCenter: parent.verticalCenter
         spacing: 6
         Repeater {
-            model: 3
+            model: [Theme.accent, Theme.accentBright, Theme.accent2]
             delegate: Rectangle {
                 id: dot
                 required property int index
-                width: 9
-                height: 9
+                required property var modelData
+                width: 8
+                height: 8
                 radius: width / 2
-                color: Theme.accentBright
+                color: modelData
                 SequentialAnimation on opacity {
                     loops: Animation.Infinite
                     PauseAnimation { duration: dot.index * 160 }
-                    NumberAnimation { from: 0.3; to: 1.0; duration: 380; easing.type: Easing.InOutQuad }
-                    NumberAnimation { from: 1.0; to: 0.3; duration: 380; easing.type: Easing.InOutQuad }
+                    NumberAnimation { from: 0.25; to: 1.0; duration: 380; easing.type: Easing.InOutQuad }
+                    NumberAnimation { from: 1.0; to: 0.25; duration: 380; easing.type: Easing.InOutQuad }
                     PauseAnimation { duration: (2 - dot.index) * 160 }
                 }
             }

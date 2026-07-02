@@ -9,22 +9,30 @@ Rectangle {
     property bool current: false
     signal clicked()
 
-    width: chipLabel.implicitWidth + Theme.s24
+    width: chipLabel.implicitWidth + Theme.s24 + 4
     height: 34
-    radius: Theme.rMd
-    color: current ? Theme.accentSoft : (chipHover.hovered ? Theme.surfaceHover : Theme.surfaceAlt)
+    radius: Theme.rPill
+    color: current ? Theme.accentSoft
+                   : (chipHover.hovered ? Qt.rgba(1, 1, 1, 0.09) : Qt.rgba(1, 1, 1, 0.045))
     border.width: 1
-    border.color: current ? Theme.accent : Theme.line
+    border.color: current ? Theme.alpha(Theme.accent, 0.75)
+                          : (chipHover.hovered ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.08))
+
+    scale: chipTap.pressed ? 0.96 : 1.0
+    Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutQuad } }
+    Behavior on color { ColorAnimation { duration: Theme.durFast } }
+    Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
 
     Text {
         id: chipLabel
         anchors.centerIn: parent
         text: chip.label
-        color: chip.current ? Theme.text : Theme.textDim
+        color: chip.current ? Theme.text : (chipHover.hovered ? Theme.text : Theme.textDim)
         font.pixelSize: Theme.fSmall
-        font.bold: chip.current
+        font.weight: chip.current ? Font.DemiBold : Font.Medium
+        Behavior on color { ColorAnimation { duration: Theme.durFast } }
     }
 
     HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor }
-    TapHandler { onTapped: chip.clicked() }
+    TapHandler { id: chipTap; onTapped: chip.clicked() }
 }

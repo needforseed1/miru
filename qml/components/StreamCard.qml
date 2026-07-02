@@ -10,9 +10,9 @@ Rectangle {
 
     implicitHeight: layout.implicitHeight + Theme.s32
     radius: Theme.rLg
-    color: hover.hovered ? Theme.surfaceHover : Theme.surface
+    color: hover.hovered ? Qt.rgba(1, 1, 1, 0.065) : Qt.rgba(1, 1, 1, 0.032)
     border.width: 1
-    border.color: hover.hovered ? Theme.accent : Theme.line
+    border.color: hover.hovered ? Theme.alpha(Theme.accent, 0.65) : Qt.rgba(1, 1, 1, 0.07)
 
     Behavior on color { ColorAnimation { duration: Theme.durFast } }
     Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
@@ -33,7 +33,7 @@ Rectangle {
                 text: root.stream.title || root.stream.filename || "Unnamed release"
                 color: Theme.text
                 font.pixelSize: Theme.fBody
-                font.bold: true
+                font.weight: Font.DemiBold
                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                 maximumLineCount: 2
                 elide: Text.ElideRight
@@ -98,20 +98,23 @@ Rectangle {
 
         // play affordance
         Rectangle {
-            Layout.preferredWidth: 48
-            Layout.preferredHeight: 48
+            Layout.preferredWidth: 46
+            Layout.preferredHeight: 46
             Layout.alignment: Qt.AlignVCenter
             radius: width / 2
-            color: hover.hovered ? Theme.accent : Theme.surfaceAlt
+            color: hover.hovered ? Theme.accent : Qt.rgba(1, 1, 1, 0.06)
             border.width: 1
-            border.color: hover.hovered ? Theme.accent : Theme.lineStrong
+            border.color: hover.hovered ? Qt.lighter(Theme.accent, 1.25) : Qt.rgba(1, 1, 1, 0.14)
+            scale: hover.hovered ? 1.06 : 1.0
             Behavior on color { ColorAnimation { duration: Theme.durFast } }
+            Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
+            Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutQuad } }
             Text {
                 anchors.centerIn: parent
                 anchors.horizontalCenterOffset: 2
                 text: "▶"
                 color: hover.hovered ? "white" : Theme.textDim
-                font.pixelSize: 17
+                font.pixelSize: 16
             }
         }
     }

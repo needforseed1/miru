@@ -1,4 +1,6 @@
 #include <QByteArray>
+#include <QFont>
+#include <QFontDatabase>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -30,6 +32,15 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     app.setApplicationDisplayName(QStringLiteral("Miru"));
     QQuickStyle::setStyle("Basic");
+
+    // Bundled UI font; named instances (Medium/SemiBold/…) map to QML
+    // font.weight. Fall back to the system font if registration fails.
+    if (QFontDatabase::addApplicationFont(
+            QStringLiteral(":/resources/fonts/InterVariable.ttf")) != -1) {
+        QFont uiFont(QStringLiteral("Inter Variable"));
+        uiFont.setPixelSize(14);
+        app.setFont(uiFont);
+    }
 
     ApplicationController controller;
 

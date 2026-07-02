@@ -12,7 +12,7 @@ ColumnLayout {
     signal openRequested(var item)
 
     readonly property int rowHeight: 316
-    readonly property int fadeWidth: 56
+    readonly property int fadeWidth: 64
 
     Layout.fillWidth: true
     spacing: Theme.s12
@@ -21,13 +21,12 @@ ColumnLayout {
         Layout.fillWidth: true
         spacing: Theme.s12
 
-        Rectangle { Layout.preferredWidth: 4; Layout.preferredHeight: 22; radius: 2; color: Theme.accent }
-
         Text {
             text: rail.title
             color: Theme.text
             font.pixelSize: Theme.fH3
-            font.bold: true
+            font.weight: Font.Bold
+            font.letterSpacing: -0.2
         }
         Text {
             visible: rail.subtitle.length > 0
@@ -35,7 +34,7 @@ ColumnLayout {
             color: Theme.textMute
             font.pixelSize: Theme.fSmall
             Layout.alignment: Qt.AlignBottom
-            bottomPadding: 4
+            bottomPadding: 3
         }
         Item { Layout.fillWidth: true }
     }
@@ -46,8 +45,8 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.preferredHeight: rail.rowHeight
         radius: Theme.rLg
-        color: "transparent"
-        border.color: Theme.line
+        color: Qt.rgba(1, 1, 1, 0.015)
+        border.color: Qt.rgba(1, 1, 1, 0.06)
         border.width: 1
         Text {
             anchors.centerIn: parent
@@ -72,8 +71,8 @@ ColumnLayout {
                 SequentialAnimation on opacity {
                     running: rail.loading
                     loops: Animation.Infinite
-                    NumberAnimation { from: 0.4; to: 0.8; duration: 700; easing.type: Easing.InOutQuad }
-                    NumberAnimation { from: 0.8; to: 0.4; duration: 700; easing.type: Easing.InOutQuad }
+                    NumberAnimation { from: 0.35; to: 0.75; duration: 700; easing.type: Easing.InOutQuad }
+                    NumberAnimation { from: 0.75; to: 0.35; duration: 700; easing.type: Easing.InOutQuad }
                 }
             }
         }
@@ -104,7 +103,7 @@ ColumnLayout {
             anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
             width: rail.fadeWidth
             opacity: railList.atXBeginning ? 0 : 1
-            Behavior on opacity { NumberAnimation { duration: 70; easing.type: Easing.OutQuad } }
+            Behavior on opacity { NumberAnimation { duration: 90; easing.type: Easing.OutQuad } }
             gradient: Gradient {
                 orientation: Gradient.Horizontal
                 GradientStop { position: 0.0; color: Theme.bg }
@@ -114,10 +113,10 @@ ColumnLayout {
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.s4
                 anchors.verticalCenter: parent.verticalCenter
-                text: "‹"   // ‹
+                text: "‹"
                 color: Theme.textDim
                 font.pixelSize: 30
-                font.bold: true
+                font.weight: Font.Bold
             }
         }
 
@@ -126,7 +125,7 @@ ColumnLayout {
             anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
             width: rail.fadeWidth
             opacity: railList.atXEnd ? 0 : 1
-            Behavior on opacity { NumberAnimation { duration: 70; easing.type: Easing.OutQuad } }
+            Behavior on opacity { NumberAnimation { duration: 90; easing.type: Easing.OutQuad } }
             gradient: Gradient {
                 orientation: Gradient.Horizontal
                 GradientStop { position: 0.0; color: "transparent" }
@@ -136,10 +135,10 @@ ColumnLayout {
                 anchors.right: parent.right
                 anchors.rightMargin: Theme.s4
                 anchors.verticalCenter: parent.verticalCenter
-                text: "›"   // ›
+                text: "›"
                 color: Theme.textDim
                 font.pixelSize: 30
-                font.bold: true
+                font.weight: Font.Bold
             }
         }
     }

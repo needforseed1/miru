@@ -74,25 +74,11 @@ ColumnLayout {
         visible: root.seasons.length > 1
         Repeater {
             model: root.seasons
-            delegate: Rectangle {
+            delegate: ChoiceChip {
                 required property var modelData
-                width: seasonLabel.implicitWidth + Theme.s24
-                height: 34
-                radius: Theme.rMd
-                readonly property bool current: modelData === root.selectedSeason
-                color: current ? Theme.accentSoft : (seasonHover.hovered ? Theme.surfaceHover : Theme.surfaceAlt)
-                border.width: 1
-                border.color: current ? Theme.accent : Theme.line
-                Text {
-                    id: seasonLabel
-                    anchors.centerIn: parent
-                    text: "Season " + parent.modelData
-                    color: parent.current ? Theme.text : Theme.textDim
-                    font.pixelSize: Theme.fSmall
-                    font.bold: parent.current
-                }
-                HoverHandler { id: seasonHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.selectSeason(parent.modelData) }
+                label: "Season " + modelData
+                current: modelData === root.selectedSeason
+                onClicked: root.selectSeason(modelData)
             }
         }
     }
@@ -108,11 +94,14 @@ ColumnLayout {
                 required property var modelData
                 Layout.fillWidth: true
                 implicitHeight: Math.max(94, info.implicitHeight + Theme.s24)
-                radius: Theme.rMd
+                radius: Theme.rLg
                 readonly property bool current: modelData.id === root.selectedEpisodeId
-                color: current ? Theme.accentSoft : (epHover.hovered ? Theme.surfaceHover : Theme.surface)
+                color: current ? Theme.accentSoft
+                               : (epHover.hovered ? Qt.rgba(1, 1, 1, 0.065) : Qt.rgba(1, 1, 1, 0.03))
                 border.width: 1
-                border.color: current ? Theme.accent : Theme.line
+                border.color: current ? Theme.alpha(Theme.accent, 0.7) : Qt.rgba(1, 1, 1, 0.06)
+                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
 
                 RowLayout {
                     anchors.fill: parent
@@ -127,14 +116,14 @@ ColumnLayout {
                         radius: Theme.rSm
                         clip: true
                         color: Theme.surfaceAlt
-                        border.color: Theme.line
+                        border.color: Qt.rgba(1, 1, 1, 0.06)
 
                         Text {
                             anchors.centerIn: parent
                             text: "E" + epDelegate.modelData.episode
                             color: Theme.textMute
                             font.pixelSize: Theme.fTitle
-                            font.bold: true
+                            font.weight: Font.Bold
                         }
                         Image {
                             anchors.fill: parent
@@ -169,7 +158,7 @@ ColumnLayout {
                             text: epDelegate.modelData.episode + ". " + (epDelegate.modelData.title || ("Episode " + epDelegate.modelData.episode))
                             color: Theme.text
                             font.pixelSize: Theme.fBody
-                            font.bold: true
+                            font.weight: Font.DemiBold
                             elide: Text.ElideRight
                             maximumLineCount: 1
                         }
@@ -181,7 +170,7 @@ ColumnLayout {
                                 text: "★ " + (epDelegate.modelData.rating || "")
                                 color: Theme.gold
                                 font.pixelSize: Theme.fTiny
-                                font.bold: true
+                                font.weight: Font.DemiBold
                             }
                             Text {
                                 visible: !!epDelegate.modelData.released

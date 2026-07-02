@@ -24,8 +24,8 @@ Item {
         // Zoom only the artwork on hover. The title/year below keep their
         // layout position, so they never shift or get clipped by the rail.
         transformOrigin: Item.Center
-        scale: hover.hovered ? 1.04 : 1.0
-        Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutQuad } }
+        scale: hover.hovered ? 1.05 : 1.0
+        Behavior on scale { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
 
         // The placeholder, artwork and legibility gradient render into one
         // layer that is rounded by a single mask and given one drop shadow,
@@ -42,8 +42,8 @@ Item {
                 shadowEnabled: true
                 shadowColor: "#000000"
                 shadowBlur: hover.hovered ? 1.0 : 0.6
-                shadowVerticalOffset: hover.hovered ? 10 : 5
-                shadowOpacity: 0.55
+                shadowVerticalOffset: hover.hovered ? 12 : 6
+                shadowOpacity: 0.6
                 Behavior on shadowBlur { NumberAnimation { duration: Theme.durMed } }
             }
 
@@ -59,7 +59,7 @@ Item {
                     text: (root.item.name || "?").charAt(0).toUpperCase()
                     color: Theme.textMute
                     font.pixelSize: 48
-                    font.bold: true
+                    font.weight: Font.Bold
                 }
             }
 
@@ -83,6 +83,16 @@ Item {
             layer.enabled: true
         }
 
+        // hover ring: crisp accent outline above the artwork layer
+        Rectangle {
+            anchors.fill: parent
+            radius: Theme.rLg
+            color: "transparent"
+            border.width: 2
+            border.color: Theme.alpha(Theme.accentBright, hover.hovered ? 0.85 : 0.0)
+            Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
+        }
+
         // rating badge (crisp, above the masked artwork)
         Rectangle {
             id: ratingPill
@@ -90,10 +100,12 @@ Item {
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.margins: Theme.s8
-            radius: Theme.rSm
+            radius: Theme.rPill
             height: 22
-            width: ratingRow.width + Theme.s12
-            color: "#cc11151f"
+            width: ratingRow.width + Theme.s12 + 2
+            color: "#d9090a11"
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.1)
             Row {
                 id: ratingRow
                 anchors.centerIn: parent
@@ -103,7 +115,7 @@ Item {
                     text: root.item.imdbRating || ""
                     color: Theme.text
                     font.pixelSize: Theme.fTiny
-                    font.bold: true
+                    font.weight: Font.DemiBold
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }
@@ -114,7 +126,7 @@ Item {
     // ---- Title -------------------------------------------------------------
     Column {
         anchors.top: posterFrame.bottom
-        anchors.topMargin: Theme.s8
+        anchors.topMargin: Theme.s8 + 2
         anchors.left: parent.left
         anchors.right: parent.right
         spacing: 2
@@ -124,7 +136,7 @@ Item {
             text: root.item.name || "Untitled"
             color: hover.hovered ? Theme.accentBright : Theme.text
             font.pixelSize: Theme.fSmall
-            font.bold: true
+            font.weight: Font.DemiBold
             elide: Text.ElideRight
             maximumLineCount: 1
             Behavior on color { ColorAnimation { duration: Theme.durFast } }

@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import QtQuick.Effects
+import QtQuick.Shapes
 import StremioLinux
 import "components"
 
@@ -128,9 +130,6 @@ ApplicationWindow {
         removeResumeDialog.open()
     }
 
-    // For a series, auto-select the first episode once its metadata arrives,
-    // so releases for S01E01 load by default instead of showing stale ones.
-
     Dialog {
         id: removeResumeDialog
         modal: true
@@ -141,10 +140,14 @@ ApplicationWindow {
         padding: Theme.s24
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
+        Overlay.modal: Rectangle {
+            color: "#a6050609"
+        }
+
         background: Rectangle {
-            radius: Theme.rLg
-            color: Theme.surface
-            border.color: Theme.lineStrong
+            radius: Theme.rXl
+            color: "#131421"
+            border.color: Qt.rgba(1, 1, 1, 0.12)
             border.width: 1
         }
 
@@ -156,7 +159,7 @@ ApplicationWindow {
                 text: "Remove resume progress?"
                 color: Theme.text
                 font.pixelSize: Theme.fH3
-                font.bold: true
+                font.weight: Font.Bold
                 Layout.fillWidth: true
             }
 
@@ -164,7 +167,7 @@ ApplicationWindow {
                 text: root.pendingRemoveResumeTitle
                 color: Theme.text
                 font.pixelSize: Theme.fBody
-                font.bold: true
+                font.weight: Font.DemiBold
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
             }
@@ -175,7 +178,7 @@ ApplicationWindow {
                       : "This removes the saved local playback progress. It will not mark the item watched."
                 color: Theme.textDim
                 font.pixelSize: Theme.fBody
-                lineHeight: 1.18
+                lineHeight: 1.25
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
             }
@@ -205,21 +208,57 @@ ApplicationWindow {
     }
 
     // ===== Background =======================================================
+    // Near-black base with two faint ambient glows: iris top-left, pink
+    // bottom-right. Everything translucent above picks up this tint.
     Rectangle {
         anchors.fill: parent
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#12151f" }
-            GradientStop { position: 0.55; color: Theme.bg }
-            GradientStop { position: 1.0; color: "#05060a" }
+        color: Theme.bg
+    }
+
+    Shape {
+        anchors.fill: parent
+        preferredRendererType: Shape.CurveRenderer
+
+        ShapePath {
+            strokeWidth: -1
+            fillGradient: RadialGradient {
+                centerX: root.width * 0.16
+                centerY: -root.height * 0.1
+                focalX: centerX
+                focalY: centerY
+                centerRadius: root.width * 0.55
+                GradientStop { position: 0.0; color: Theme.alpha(Theme.accent, 0.1) }
+                GradientStop { position: 1.0; color: "transparent" }
+            }
+            PathRectangle { x: 0; y: 0; width: root.width; height: root.height }
+        }
+
+        ShapePath {
+            strokeWidth: -1
+            fillGradient: RadialGradient {
+                centerX: root.width * 0.95
+                centerY: root.height * 1.05
+                focalX: centerX
+                focalY: centerY
+                centerRadius: root.width * 0.5
+                GradientStop { position: 0.0; color: Theme.alpha(Theme.accent2, 0.05) }
+                GradientStop { position: 1.0; color: "transparent" }
+            }
+            PathRectangle { x: 0; y: 0; width: root.width; height: root.height }
         }
     }
 
     // ===== Top bar ==========================================================
     header: Rectangle {
         implicitHeight: 64
-        color: Theme.bgElevated
+        color: Theme.glassBar
 
-        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
+        Rectangle {
+            anchors.bottom: parent.bottom
+            width: parent.width
+            height: 1
+            color: Qt.rgba(1, 1, 1, 0.06)
+        }
 
         RowLayout {
             anchors.fill: parent
@@ -229,21 +268,31 @@ ApplicationWindow {
 
             // brand
             Row {
-                spacing: Theme.s8
+                spacing: Theme.s12
+
+                // gradient logo mark
                 Rectangle {
-                    width: 12; height: 12; radius: 6
+                    width: 26; height: 26; radius: 9
                     anchors.verticalCenter: parent.verticalCenter
                     gradient: Gradient {
                         orientation: Gradient.Horizontal
                         GradientStop { position: 0.0; color: Theme.accent }
-                        GradientStop { position: 1.0; color: Theme.accentBright }
+                        GradientStop { position: 1.0; color: Theme.accent2 }
+                    }
+                    Text {
+                        anchors.centerIn: parent
+                        text: "M"
+                        color: "white"
+                        font.pixelSize: 15
+                        font.weight: Font.ExtraBold
                     }
                 }
                 Text {
                     text: "Miru"
                     color: Theme.text
                     font.pixelSize: Theme.fH3
-                    font.bold: true
+                    font.weight: Font.ExtraBold
+                    font.letterSpacing: -0.3
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }
@@ -251,11 +300,11 @@ ApplicationWindow {
             // divider
             Rectangle {
                 Layout.preferredWidth: 1
-                Layout.preferredHeight: 26
+                Layout.preferredHeight: 24
                 Layout.leftMargin: Theme.s8
                 Layout.rightMargin: Theme.s8
                 Layout.alignment: Qt.AlignVCenter
-                color: Theme.line
+                color: Qt.rgba(1, 1, 1, 0.08)
             }
 
             // primary navigation
@@ -307,7 +356,8 @@ ApplicationWindow {
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
                     GradientStop { position: 0.0; color: "transparent" }
-                    GradientStop { position: 0.5; color: Theme.accentBright }
+                    GradientStop { position: 0.35; color: Theme.accent }
+                    GradientStop { position: 0.65; color: Theme.accent2 }
                     GradientStop { position: 1.0; color: "transparent" }
                 }
                 XAnimator on x {
@@ -323,8 +373,21 @@ ApplicationWindow {
 
     // ===== Pages ============================================================
     StackLayout {
+        id: pages
         anchors.fill: parent
         currentIndex: root.page
+
+        // gentle cross-page fade
+        onCurrentIndexChanged: pageFade.restart()
+        NumberAnimation {
+            id: pageFade
+            target: pages
+            property: "opacity"
+            from: 0.4
+            to: 1.0
+            duration: Theme.durMed
+            easing.type: Easing.OutQuad
+        }
 
         // ---- Home ----------------------------------------------------------
         ScrollView {
@@ -348,19 +411,19 @@ ApplicationWindow {
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: Theme.s12
-                        Rectangle { Layout.preferredWidth: 4; Layout.preferredHeight: 22; radius: 2; color: Theme.accent }
                         Text {
                             text: "Continue Watching"
                             color: Theme.text
                             font.pixelSize: Theme.fH3
-                            font.bold: true
+                            font.weight: Font.Bold
+                            font.letterSpacing: -0.2
                         }
                         Text {
                             text: appController.continueWatching.length + " in progress"
                             color: Theme.textMute
                             font.pixelSize: Theme.fSmall
                             Layout.alignment: Qt.AlignBottom
-                            bottomPadding: 4
+                            bottomPadding: 3
                         }
                         Item { Layout.fillWidth: true }
                     }
@@ -395,19 +458,19 @@ ApplicationWindow {
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: Theme.s12
-                        Rectangle { Layout.preferredWidth: 4; Layout.preferredHeight: 22; radius: 2; color: Theme.accentBright }
                         Text {
                             text: "Next Up"
                             color: Theme.text
                             font.pixelSize: Theme.fH3
-                            font.bold: true
+                            font.weight: Font.Bold
+                            font.letterSpacing: -0.2
                         }
                         Text {
                             text: appController.nextUp.length + " shows"
                             color: Theme.textMute
                             font.pixelSize: Theme.fSmall
                             Layout.alignment: Qt.AlignBottom
-                            bottomPadding: 4
+                            bottomPadding: 3
                         }
                         Item { Layout.fillWidth: true }
                     }
@@ -485,129 +548,208 @@ ApplicationWindow {
                 width: parent.width
                 spacing: Theme.s24
 
-                // hero details
+                // Cinematic hero: full-bleed backdrop that melts into the page
+                // background, with poster + facts riding on top of the scrim.
                 Item {
+                    id: detailsHero
                     Layout.fillWidth: true
-                    Layout.topMargin: Theme.s24
-                    Layout.leftMargin: Theme.s32
-                    Layout.rightMargin: Theme.s32
-                    implicitHeight: 380
+                    implicitHeight: 440
 
+                    Image {
+                        id: heroBackdrop
+                        anchors.fill: parent
+                        source: appController.selectedMeta.background
+                                || root.detailsItem.background || root.detailsItem.poster || ""
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        opacity: 0.55
+                    }
+
+                    // melt the backdrop into the page: darker to the left for
+                    // text legibility, fading to Theme.bg at the bottom
                     Rectangle {
                         anchors.fill: parent
-                        radius: Theme.rXl
-                        clip: true
-                        color: Theme.surface
-
-                        Image {
-                            anchors.fill: parent
-                            source: appController.selectedMeta.background
-                                    || root.detailsItem.background || root.detailsItem.poster || ""
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            opacity: 0.4
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0.0; color: "#d907070c" }
+                            GradientStop { position: 0.55; color: "#6607070c" }
+                            GradientStop { position: 1.0; color: "#2607070c" }
                         }
+                    }
+                    Rectangle {
+                        anchors.fill: parent
+                        gradient: Gradient {
+                            GradientStop { position: 0.0; color: "#4d07070c" }
+                            GradientStop { position: 0.6; color: "#8007070c" }
+                            GradientStop { position: 1.0; color: Theme.bg }
+                        }
+                    }
+
+                    RowLayout {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        anchors.leftMargin: Theme.s40
+                        anchors.rightMargin: Theme.s40
+                        anchors.bottomMargin: Theme.s24
+                        spacing: Theme.s32
+
+                        // poster with rounded corners and drop shadow
                         Rectangle {
-                            anchors.fill: parent
-                            gradient: Gradient {
-                                GradientStop { position: 0.0; color: "#330c0e16" }
-                                GradientStop { position: 1.0; color: "#f00c0e16" }
-                            }
-                        }
+                            Layout.preferredWidth: 190
+                            Layout.preferredHeight: 285
+                            Layout.alignment: Qt.AlignBottom
+                            radius: Theme.rLg
+                            color: Theme.surface
+                            clip: true
+                            border.width: 1
+                            border.color: Qt.rgba(1, 1, 1, 0.12)
+                            visible: heroPoster.source != ""
 
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.margins: Theme.s32
-                            spacing: Theme.s24
-
-                            // poster
                             Image {
-                                Layout.preferredWidth: 170
-                                Layout.preferredHeight: 255
-                                Layout.alignment: Qt.AlignBottom
+                                id: heroPoster
+                                anchors.fill: parent
                                 source: appController.selectedMeta.poster || root.detailsItem.poster || ""
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
-                                visible: source != ""
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignBottom
+                            spacing: Theme.s12
+
+                            // title logo artwork when the addon provides one,
+                            // otherwise the big display title
+                            Image {
+                                id: heroLogo
+                                Layout.maximumWidth: Math.min(420, detailsHero.width * 0.45)
+                                Layout.maximumHeight: 130
+                                source: appController.selectedMeta.logo || ""
+                                fillMode: Image.PreserveAspectFit
+                                asynchronous: true
+                                visible: source != "" && status === Image.Ready
                             }
 
-                            ColumnLayout {
+                            Text {
                                 Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                spacing: Theme.s12
+                                visible: !heroLogo.visible
+                                text: appController.selectedMeta.name || root.detailsItem.name || "Details"
+                                color: Theme.text
+                                font.pixelSize: Theme.fH1
+                                font.weight: Font.ExtraBold
+                                font.letterSpacing: -0.8
+                                wrapMode: Text.WordWrap
+                                maximumLineCount: 2
+                                elide: Text.ElideRight
+                            }
 
-                                Item { Layout.fillHeight: true }
-
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: appController.selectedMeta.name || root.detailsItem.name || "Details"
-                                    color: Theme.text
-                                    font.pixelSize: Theme.fH2
-                                    font.bold: true
-                                    wrapMode: Text.WordWrap
-                                    maximumLineCount: 2
-                                    elide: Text.ElideRight
-                                }
-
-                                // meta chips
-                                Flow {
-                                    Layout.fillWidth: true
-                                    spacing: Theme.s8
-                                    Pill {
-                                        visible: appController.showPosterRatings
-                                                 && !!appController.selectedMeta.imdbRating
-                                        text: "★ " + (appController.selectedMeta.imdbRating || "")
-                                        accentColor: Theme.gold
-                                    }
-                                    Pill {
-                                        visible: !!appController.selectedMeta.releaseInfo
-                                        text: appController.selectedMeta.releaseInfo || ""
-                                        accentColor: Theme.lineStrong
-                                    }
-                                    Pill {
-                                        visible: !!appController.selectedMeta.runtime
-                                        text: appController.selectedMeta.runtime || ""
-                                        accentColor: Theme.lineStrong
-                                    }
-                                    Pill {
-                                        text: root.isSeries ? "SERIES" : "MOVIE"
-                                        accentColor: Theme.accent
-                                    }
-                                }
-
-                                // genres
-                                Flow {
-                                    Layout.fillWidth: true
-                                    spacing: Theme.s8
-                                    Repeater {
-                                        model: appController.selectedMeta.genres || []
-                                        delegate: Pill {
-                                            required property var modelData
-                                            text: modelData
-                                            accentColor: Theme.accentBright
-                                        }
-                                    }
-                                }
+                            // facts row: rating · year · runtime · type
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: Theme.s8
 
                                 Text {
-                                    Layout.fillWidth: true
-                                    text: appController.selectedMeta.description || root.detailsItem.description || ""
+                                    visible: appController.showPosterRatings
+                                             && !!appController.selectedMeta.imdbRating
+                                    text: "★ " + (appController.selectedMeta.imdbRating || "")
+                                    color: Theme.gold
+                                    font.pixelSize: Theme.fBody
+                                    font.weight: Font.Bold
+                                }
+                                Text {
+                                    visible: appController.showPosterRatings
+                                             && !!appController.selectedMeta.imdbRating
+                                    text: "·"
+                                    color: Theme.textMute
+                                    font.pixelSize: Theme.fBody
+                                }
+                                Text {
+                                    visible: !!appController.selectedMeta.releaseInfo
+                                    text: appController.selectedMeta.releaseInfo || ""
                                     color: Theme.textDim
                                     font.pixelSize: Theme.fBody
-                                    wrapMode: Text.WordWrap
-                                    maximumLineCount: 4
-                                    elide: Text.ElideRight
+                                    font.weight: Font.Medium
                                 }
+                                Text {
+                                    visible: !!appController.selectedMeta.releaseInfo
+                                             && !!appController.selectedMeta.runtime
+                                    text: "·"
+                                    color: Theme.textMute
+                                    font.pixelSize: Theme.fBody
+                                }
+                                Text {
+                                    visible: !!appController.selectedMeta.runtime
+                                    text: appController.selectedMeta.runtime || ""
+                                    color: Theme.textDim
+                                    font.pixelSize: Theme.fBody
+                                    font.weight: Font.Medium
+                                }
+                                Text {
+                                    text: "·"
+                                    color: Theme.textMute
+                                    font.pixelSize: Theme.fBody
+                                }
+                                Pill {
+                                    text: root.isSeries ? "SERIES" : "MOVIE"
+                                    accentColor: Theme.accent
+                                }
+                                Item { Layout.fillWidth: true }
+                            }
+
+                            // genres
+                            Flow {
+                                Layout.fillWidth: true
+                                spacing: Theme.s8
+                                Repeater {
+                                    model: appController.selectedMeta.genres || []
+                                    delegate: Pill {
+                                        required property var modelData
+                                        text: modelData
+                                        accentColor: Theme.accentBright
+                                    }
+                                }
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                Layout.maximumWidth: 780
+                                text: appController.selectedMeta.description || root.detailsItem.description || ""
+                                color: Theme.textDim
+                                font.pixelSize: Theme.fBody
+                                lineHeight: 1.3
+                                wrapMode: Text.WordWrap
+                                maximumLineCount: 4
+                                elide: Text.ElideRight
                             }
                         }
                     }
 
-                    AppButton {
+                    // floating circular back button
+                    Rectangle {
                         anchors.top: parent.top
                         anchors.left: parent.left
                         anchors.margins: Theme.s16
-                        text: "‹  Back"
-                        onClicked: root.page = 0
+                        width: 38
+                        height: 38
+                        radius: width / 2
+                        color: backHover.hovered ? Qt.rgba(1, 1, 1, 0.16) : "#a60a0b12"
+                        border.width: 1
+                        border.color: Qt.rgba(1, 1, 1, backHover.hovered ? 0.25 : 0.12)
+                        Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                        Text {
+                            anchors.centerIn: parent
+                            anchors.verticalCenterOffset: -1
+                            text: "‹"
+                            color: Theme.text
+                            font.pixelSize: 22
+                            font.weight: Font.Bold
+                        }
+
+                        HoverHandler { id: backHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler { onTapped: root.page = 0 }
                     }
                 }
 
@@ -628,15 +770,12 @@ ApplicationWindow {
                         Layout.alignment: Qt.AlignTop
                         spacing: Theme.s16
 
-                        RowLayout {
-                            spacing: Theme.s12
-                            Rectangle { Layout.preferredWidth: 4; Layout.preferredHeight: 22; radius: 2; color: Theme.accent }
-                            Text {
-                                text: "Episodes"
-                                color: Theme.text
-                                font.pixelSize: Theme.fH3
-                                font.bold: true
-                            }
+                        Text {
+                            text: "Episodes"
+                            color: Theme.text
+                            font.pixelSize: Theme.fH3
+                            font.weight: Font.Bold
+                            font.letterSpacing: -0.2
                         }
 
                         EpisodeList {
@@ -677,12 +816,12 @@ ApplicationWindow {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: Theme.s12
-                            Rectangle { Layout.preferredWidth: 4; Layout.preferredHeight: 22; radius: 2; color: Theme.accent }
                             Text {
                                 text: "Releases"
                                 color: Theme.text
                                 font.pixelSize: Theme.fH3
-                                font.bold: true
+                                font.weight: Font.Bold
+                                font.letterSpacing: -0.2
                             }
                             Pill {
                                 visible: root.episodeLabel.length > 0
@@ -719,8 +858,8 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             implicitHeight: 110
                             radius: Theme.rLg
-                            color: "transparent"
-                            border.color: Theme.line
+                            color: Qt.rgba(1, 1, 1, 0.015)
+                            border.color: Qt.rgba(1, 1, 1, 0.06)
                             border.width: 1
                             visible: appController.streams.length === 0
 
@@ -777,13 +916,23 @@ ApplicationWindow {
                 width: parent.width
                 spacing: Theme.s24
 
-                Text {
-                    text: "Settings"
-                    color: Theme.text
-                    font.pixelSize: Theme.fH2
-                    font.bold: true
+                ColumnLayout {
                     Layout.topMargin: Theme.s32
                     Layout.leftMargin: Theme.s32
+                    spacing: Theme.s4
+
+                    Text {
+                        text: "Settings"
+                        color: Theme.text
+                        font.pixelSize: Theme.fH2
+                        font.weight: Font.ExtraBold
+                        font.letterSpacing: -0.5
+                    }
+                    Text {
+                        text: "Addons, playback, and interface preferences"
+                        color: Theme.textMute
+                        font.pixelSize: Theme.fBody
+                    }
                 }
 
                 SettingsCard {
@@ -897,10 +1046,10 @@ ApplicationWindow {
                         visible: appController.traktAuthPending
                         Layout.fillWidth: true
                         Layout.preferredHeight: authDetails.implicitHeight + Theme.s16 * 2
-                        radius: Theme.rMd
-                        color: Theme.surfaceAlt
+                        radius: Theme.rLg
+                        color: Qt.rgba(1, 1, 1, 0.04)
                         border.width: 1
-                        border.color: Theme.line
+                        border.color: Qt.rgba(1, 1, 1, 0.08)
 
                         ColumnLayout {
                             id: authDetails
@@ -921,8 +1070,8 @@ ApplicationWindow {
                                 text: appController.traktUserCode
                                 color: Theme.text
                                 font.pixelSize: Theme.fH3
-                                font.bold: true
-                                font.letterSpacing: 2
+                                font.weight: Font.Bold
+                                font.letterSpacing: 3
                             }
 
                             RowLayout {
@@ -1127,21 +1276,31 @@ ApplicationWindow {
             color: Theme.bg
         }
 
+        // blurred, dimmed artwork backdrop
         Image {
+            id: preparingBackdrop
             anchors.fill: parent
             source: root.preparingArtwork
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
-            opacity: 0.42
-            visible: source != ""
+            visible: false
+        }
+        MultiEffect {
+            anchors.fill: preparingBackdrop
+            source: preparingBackdrop
+            visible: root.preparingArtwork !== ""
+            blurEnabled: true
+            blur: 0.75
+            blurMax: 48
+            opacity: 0.5
         }
 
         Rectangle {
             anchors.fill: parent
             gradient: Gradient {
-                GradientStop { position: 0.0; color: "#ee090a10" }
-                GradientStop { position: 0.46; color: "#aa090a10" }
-                GradientStop { position: 1.0; color: "#f6090a10" }
+                GradientStop { position: 0.0; color: "#ee07070c" }
+                GradientStop { position: 0.46; color: "#a607070c" }
+                GradientStop { position: 1.0; color: "#f607070c" }
             }
         }
 
@@ -1174,7 +1333,8 @@ ApplicationWindow {
                 text: root.preparingTitle
                 color: Theme.text
                 font.pixelSize: Theme.fH1
-                font.bold: true
+                font.weight: Font.ExtraBold
+                font.letterSpacing: -0.8
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
                 maximumLineCount: 2
@@ -1187,7 +1347,7 @@ ApplicationWindow {
                 text: root.preparingSubtitle
                 color: Theme.textDim
                 font.pixelSize: Theme.fTitle
-                font.bold: true
+                font.weight: Font.DemiBold
                 horizontalAlignment: Text.AlignHCenter
                 maximumLineCount: 1
                 elide: Text.ElideRight
@@ -1197,17 +1357,8 @@ ApplicationWindow {
                 Layout.alignment: Qt.AlignHCenter
                 spacing: Theme.s12
 
-                BusyIndicator {
-                    Layout.preferredWidth: 24
-                    Layout.preferredHeight: 24
-                    running: preparingOverlay.visible
-                }
-
-                Text {
-                    text: "Preparing stream"
-                    color: Theme.textDim
-                    font.pixelSize: Theme.fBody
-                    font.bold: true
+                SearchSpinner {
+                    label: "Preparing stream"
                 }
             }
         }
@@ -1215,18 +1366,29 @@ ApplicationWindow {
 
     // ===== Status bar =======================================================
     footer: Rectangle {
-        implicitHeight: 34
-        color: Theme.bgElevated
-        Rectangle { width: parent.width; height: 1; color: Theme.line }
+        implicitHeight: 32
+        color: Theme.glassBar
+        Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.06) }
         RowLayout {
             anchors.verticalCenter: parent.verticalCenter
             anchors.left: parent.left
             anchors.leftMargin: Theme.s24
             spacing: Theme.s8
             Rectangle {
-                Layout.preferredWidth: 8; Layout.preferredHeight: 8; radius: 4
+                id: statusDot
+                Layout.preferredWidth: 7
+                Layout.preferredHeight: 7
+                radius: 3.5
                 Layout.alignment: Qt.AlignVCenter
                 color: appController.loading || appController.playbackBuffering ? Theme.gold : Theme.success
+
+                SequentialAnimation on opacity {
+                    running: appController.loading || appController.playbackBuffering
+                    loops: Animation.Infinite
+                    onStopped: statusDot.opacity = 1
+                    NumberAnimation { from: 1.0; to: 0.35; duration: 500; easing.type: Easing.InOutSine }
+                    NumberAnimation { from: 0.35; to: 1.0; duration: 500; easing.type: Easing.InOutSine }
+                }
             }
             Text {
                 text: appController.statusMessage || "Ready"
