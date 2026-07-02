@@ -20,12 +20,15 @@ QtObject {
     readonly property color glassBar: "#f00a0b13"
 
     // ---- Accent ------------------------------------------------------------
-    // Iris violet as the working accent; hot pink only as the far end of
-    // brand gradients (progress, logo, loading bar) — never as flat fill.
-    readonly property color accent: "#8460ff"
-    readonly property color accentBright: "#ab92ff"
-    readonly property color accent2: "#ff5e9a"
-    readonly property color accentSoft: "#241d49"
+    // User-tunable colors. mainColor drives controls, focus rings, and active
+    // states; progressGradientStart/end drive progress and loading gradients.
+    property color mainColor: "#8460ff"
+    property color progressGradientStart: "#8460ff"
+    property color progressGradientEnd: "#ff5e9a"
+    readonly property color accent: mainColor
+    readonly property color accentBright: Qt.lighter(mainColor, 1.28)
+    readonly property color accent2: progressGradientEnd
+    readonly property color accentSoft: Qt.rgba(mainColor.r, mainColor.g, mainColor.b, 0.2)
 
     // ---- Text --------------------------------------------------------------
     readonly property color text: "#f2f3fb"

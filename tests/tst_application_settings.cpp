@@ -20,6 +20,7 @@ private slots:
     void reportsSourceHealth();
     void persistsUserSettings();
     void ignoresInvalidScale();
+    void ignoresInvalidThemeColors();
 };
 
 namespace {
@@ -94,6 +95,9 @@ void ApplicationSettingsTest::loadsDefaults()
     QCOMPARE(controller.subtitleLanguage(), QStringLiteral("eng"));
     QCOMPARE(controller.uiScale(), 1.0);
     QCOMPARE(controller.showPosterRatings(), true);
+    QCOMPARE(controller.uiMainColor(), QStringLiteral("#8460ff"));
+    QCOMPARE(controller.uiProgressStartColor(), QStringLiteral("#8460ff"));
+    QCOMPARE(controller.uiProgressEndColor(), QStringLiteral("#ff5e9a"));
     QCOMPARE(controller.mpvHardwareDecoding(), true);
     QCOMPARE(controller.mpvGpuNext(), false);
     QCOMPARE(controller.mpvHdrHint(), false);
@@ -141,6 +145,7 @@ void ApplicationSettingsTest::persistsUserSettings()
     QSignalSpy aioChanged(&controller, &ApplicationController::aioStreamsUrlChanged);
     QSignalSpy metadataChanged(&controller, &ApplicationController::metadataUrlChanged);
     QSignalSpy subtitleChanged(&controller, &ApplicationController::subtitleLanguageChanged);
+    QSignalSpy themeColorsChanged(&controller, &ApplicationController::themeColorsChanged);
     QSignalSpy extraArgsChanged(&controller, &ApplicationController::mpvExtraArgsChanged);
 
     controller.setAioStreamsUrl(QStringLiteral("  https://aio.example/manifest.json  "));
@@ -148,6 +153,7 @@ void ApplicationSettingsTest::persistsUserSettings()
     controller.setSubtitleLanguage(QStringLiteral("nor"));
     controller.setUiScale(1.25);
     controller.setShowPosterRatings(false);
+    controller.setThemeColors(QStringLiteral("2F9CFF"), QStringLiteral("#18d6a3"), QStringLiteral("#ff4f7b"));
     controller.setMpvHardwareDecoding(false);
     controller.setMpvGpuNext(true);
     controller.setMpvHdrHint(true);
@@ -158,6 +164,7 @@ void ApplicationSettingsTest::persistsUserSettings()
     QCOMPARE(aioChanged.count(), 1);
     QCOMPARE(metadataChanged.count(), 1);
     QCOMPARE(subtitleChanged.count(), 1);
+    QCOMPARE(themeColorsChanged.count(), 1);
     QCOMPARE(extraArgsChanged.count(), 1);
 
     QSettings settings;
@@ -167,6 +174,9 @@ void ApplicationSettingsTest::persistsUserSettings()
     QCOMPARE(settings.value(QStringLiteral("subtitles/language")).toString(), QStringLiteral("nor"));
     QCOMPARE(settings.value(QStringLiteral("ui/scaleFactor")).toDouble(), 1.25);
     QCOMPARE(settings.value(QStringLiteral("ui/showPosterRatings")).toBool(), false);
+    QCOMPARE(settings.value(QStringLiteral("ui/mainColor")).toString(), QStringLiteral("#2f9cff"));
+    QCOMPARE(settings.value(QStringLiteral("ui/progressStartColor")).toString(), QStringLiteral("#18d6a3"));
+    QCOMPARE(settings.value(QStringLiteral("ui/progressEndColor")).toString(), QStringLiteral("#ff4f7b"));
     QCOMPARE(settings.value(QStringLiteral("mpv/hardwareDecoding")).toBool(), false);
     QCOMPARE(settings.value(QStringLiteral("mpv/gpuNext")).toBool(), true);
     QCOMPARE(settings.value(QStringLiteral("mpv/hdrHint")).toBool(), true);
@@ -180,6 +190,9 @@ void ApplicationSettingsTest::persistsUserSettings()
     QCOMPARE(reloaded.subtitleLanguage(), QStringLiteral("nor"));
     QCOMPARE(reloaded.uiScale(), 1.25);
     QCOMPARE(reloaded.showPosterRatings(), false);
+    QCOMPARE(reloaded.uiMainColor(), QStringLiteral("#2f9cff"));
+    QCOMPARE(reloaded.uiProgressStartColor(), QStringLiteral("#18d6a3"));
+    QCOMPARE(reloaded.uiProgressEndColor(), QStringLiteral("#ff4f7b"));
     QCOMPARE(reloaded.mpvHardwareDecoding(), false);
     QCOMPARE(reloaded.mpvGpuNext(), true);
     QCOMPARE(reloaded.mpvHdrHint(), true);
@@ -197,6 +210,22 @@ void ApplicationSettingsTest::ignoresInvalidScale()
     controller.setUiScale(-2.0);
     QCOMPARE(controller.uiScale(), 1.0);
     QCOMPARE(scaleChanged.count(), 0);
+}
+
+void ApplicationSettingsTest::ignoresInvalidThemeColors()
+{
+    ApplicationController controller;
+
+    QSignalSpy themeColorsChanged(&controller, &ApplicationController::themeColorsChanged);
+    controller.setUiMainColor(QStringLiteral("#12345"));
+    controller.setUiProgressStartColor(QStringLiteral("not-a-color"));
+    controller.setUiProgressEndColor(QStringLiteral("#1234567"));
+    controller.setThemeColors(QStringLiteral("#123456"), QStringLiteral("invalid"), QStringLiteral("#abcdef"));
+
+    QCOMPARE(controller.uiMainColor(), QStringLiteral("#8460ff"));
+    QCOMPARE(controller.uiProgressStartColor(), QStringLiteral("#8460ff"));
+    QCOMPARE(controller.uiProgressEndColor(), QStringLiteral("#ff5e9a"));
+    QCOMPARE(themeColorsChanged.count(), 0);
 }
 
 QTEST_MAIN(ApplicationSettingsTest)

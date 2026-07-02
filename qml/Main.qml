@@ -37,6 +37,12 @@ ApplicationWindow {
         return ""
     }
     readonly property bool preparingVisible: appController.playbackBuffering && !appController.playbackActive
+    readonly property var themeColorPresets: [
+        { name: "Miru", main: "#8460ff", start: "#8460ff", end: "#ff5e9a" },
+        { name: "Ocean", main: "#2f9cff", start: "#2f9cff", end: "#18d6a3" },
+        { name: "Ember", main: "#ff6b35", start: "#ffb000", end: "#ff4f7b" },
+        { name: "Mint", main: "#3ddc97", start: "#3ddc97", end: "#6c8fff" }
+    ]
 
     // "S1 · E1" label for the selected episode, derived from "ttID:season:episode"
     readonly property string episodeLabel: {
@@ -46,7 +52,29 @@ ApplicationWindow {
         return parts.length >= 3 ? "S" + parts[1] + " · E" + parts[2] : ""
     }
 
-    Component.onCompleted: appController.loadHome()
+    Component.onCompleted: {
+        applyThemeColors()
+        appController.loadHome()
+    }
+
+    Connections {
+        target: appController
+        function onThemeColorsChanged() {
+            root.applyThemeColors()
+        }
+    }
+
+    function applyThemeColors() {
+        Theme.mainColor = appController.uiMainColor
+        Theme.progressGradientStart = appController.uiProgressStartColor
+        Theme.progressGradientEnd = appController.uiProgressEndColor
+    }
+
+    function themePresetCurrent(preset) {
+        return appController.uiMainColor.toLowerCase() === preset.main
+            && appController.uiProgressStartColor.toLowerCase() === preset.start
+            && appController.uiProgressEndColor.toLowerCase() === preset.end
+    }
 
     function openDetails(item) {
         detailsItem = item
@@ -341,8 +369,8 @@ ApplicationWindow {
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
                     GradientStop { position: 0.0; color: "transparent" }
-                    GradientStop { position: 0.35; color: Theme.accent }
-                    GradientStop { position: 0.65; color: Theme.accent2 }
+                    GradientStop { position: 0.35; color: Theme.progressGradientStart }
+                    GradientStop { position: 0.65; color: Theme.progressGradientEnd }
                     GradientStop { position: 1.0; color: "transparent" }
                 }
                 XAnimator on x {
@@ -1146,11 +1174,18 @@ ApplicationWindow {
 
                 SettingsCard {
                     title: "Display"
-                    description: "Adjust interface zoom on top of desktop scaling. Restart the app to apply changes."
+                    description: "Adjust interface zoom and color tuning."
 
+                    Text {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Theme.s4
+                        text: "Zoom"
+                        color: Theme.text
+                        font.pixelSize: Theme.fSmall
+                        font.weight: Font.DemiBold
+                    }
                     Flow {
                         Layout.fillWidth: true
-                        Layout.topMargin: Theme.s8
                         spacing: Theme.s8
                         Repeater {
                             model: [
@@ -1166,6 +1201,119 @@ ApplicationWindow {
                                 current: Math.abs(modelData.scale - appController.uiScale) < 0.001
                                 onClicked: appController.uiScale = modelData.scale
                             }
+                        }
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Theme.s12
+                        text: "Colors"
+                        color: Theme.text
+                        font.pixelSize: Theme.fSmall
+                        font.weight: Font.DemiBold
+                    }
+
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: Theme.s8
+
+                        Repeater {
+                            model: root.themeColorPresets
+                            delegate: Rectangle {
+                                required property var modelData
+                                readonly property bool current: root.themePresetCurrent(modelData)
+
+                                width: 132
+                                height: 54
+                                radius: Theme.rMd
+                                color: current ? Theme.alpha(Theme.accent, 0.16)
+                                               : (presetHover.hovered ? Qt.rgba(1, 1, 1, 0.07) : Qt.rgba(1, 1, 1, 0.04))
+                                border.width: 1
+                                border.color: current ? Theme.alpha(Theme.accent, 0.7)
+                                                      : (presetHover.hovered ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.08))
+                                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                                Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
+
+                                Text {
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.top: parent.top
+                                    anchors.topMargin: Theme.s8
+                                    anchors.leftMargin: Theme.s12
+                                    anchors.rightMargin: Theme.s12
+                                    text: modelData.name
+                                    color: current ? Theme.text : Theme.textDim
+                                    font.pixelSize: Theme.fSmall
+                                    font.weight: current ? Font.DemiBold : Font.Medium
+                                    elide: Text.ElideRight
+                                }
+
+                                Row {
+                                    anchors.left: parent.left
+                                    anchors.bottom: parent.bottom
+                                    anchors.margins: Theme.s12
+                                    spacing: 6
+
+                                    Rectangle {
+                                        width: 18
+                                        height: 12
+                                        radius: 4
+                                        color: modelData.main
+                                    }
+                                    Rectangle {
+                                        width: 54
+                                        height: 12
+                                        radius: 4
+                                        gradient: Gradient {
+                                            orientation: Gradient.Horizontal
+                                            GradientStop { position: 0.0; color: modelData.start }
+                                            GradientStop { position: 1.0; color: modelData.end }
+                                        }
+                                    }
+                                }
+
+                                HoverHandler { id: presetHover; cursorShape: Qt.PointingHandCursor }
+                                TapHandler {
+                                    onTapped: appController.setThemeColors(modelData.main, modelData.start, modelData.end)
+                                }
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.s8
+
+                        ColorSettingRow {
+                            Layout.fillWidth: true
+                            label: "Main color"
+                            value: appController.uiMainColor
+                            onColorAccepted: color => appController.uiMainColor = color
+                        }
+                        ColorSettingRow {
+                            Layout.fillWidth: true
+                            label: "Progress start"
+                            value: appController.uiProgressStartColor
+                            onColorAccepted: color => appController.uiProgressStartColor = color
+                        }
+                        ColorSettingRow {
+                            Layout.fillWidth: true
+                            label: "Progress end"
+                            value: appController.uiProgressEndColor
+                            onColorAccepted: color => appController.uiProgressEndColor = color
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+
+                        Item { Layout.fillWidth: true }
+                        AppButton {
+                            text: "Reset colors"
+                            enabled: appController.uiMainColor !== "#8460ff"
+                                     || appController.uiProgressStartColor !== "#8460ff"
+                                     || appController.uiProgressEndColor !== "#ff5e9a"
+                            onClicked: appController.resetThemeColors()
                         }
                     }
                 }

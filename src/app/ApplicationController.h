@@ -35,6 +35,9 @@ class ApplicationController : public QObject
     Q_PROPERTY(QString imdbRatingsUpdated READ imdbRatingsUpdated NOTIFY imdbRatingsUpdatedChanged)
     Q_PROPERTY(double uiScale READ uiScale WRITE setUiScale NOTIFY uiScaleChanged)
     Q_PROPERTY(bool showPosterRatings READ showPosterRatings WRITE setShowPosterRatings NOTIFY showPosterRatingsChanged)
+    Q_PROPERTY(QString uiMainColor READ uiMainColor WRITE setUiMainColor NOTIFY themeColorsChanged)
+    Q_PROPERTY(QString uiProgressStartColor READ uiProgressStartColor WRITE setUiProgressStartColor NOTIFY themeColorsChanged)
+    Q_PROPERTY(QString uiProgressEndColor READ uiProgressEndColor WRITE setUiProgressEndColor NOTIFY themeColorsChanged)
     Q_PROPERTY(bool mpvHardwareDecoding READ mpvHardwareDecoding WRITE setMpvHardwareDecoding NOTIFY mpvHardwareDecodingChanged)
     Q_PROPERTY(bool mpvGpuNext READ mpvGpuNext WRITE setMpvGpuNext NOTIFY mpvGpuNextChanged)
     Q_PROPERTY(bool mpvHdrHint READ mpvHdrHint WRITE setMpvHdrHint NOTIFY mpvHdrHintChanged)
@@ -78,6 +81,9 @@ public:
     QString imdbRatingsUpdated() const;
     double uiScale() const;
     bool showPosterRatings() const;
+    QString uiMainColor() const;
+    QString uiProgressStartColor() const;
+    QString uiProgressEndColor() const;
     bool mpvHardwareDecoding() const;
     bool mpvGpuNext() const;
     bool mpvHdrHint() const;
@@ -123,6 +129,11 @@ public:
     void setSubtitleLanguage(const QString &language);
     void setUiScale(double scale);
     void setShowPosterRatings(bool enabled);
+    void setUiMainColor(const QString &color);
+    void setUiProgressStartColor(const QString &color);
+    void setUiProgressEndColor(const QString &color);
+    Q_INVOKABLE void setThemeColors(const QString &mainColor, const QString &progressStartColor, const QString &progressEndColor);
+    Q_INVOKABLE void resetThemeColors();
     void setMpvHardwareDecoding(bool enabled);
     void setMpvGpuNext(bool enabled);
     void setMpvHdrHint(bool enabled);
@@ -152,6 +163,7 @@ signals:
     void imdbRatingsUpdatedChanged();
     void uiScaleChanged();
     void showPosterRatingsChanged();
+    void themeColorsChanged();
     void mpvHardwareDecodingChanged();
     void mpvGpuNextChanged();
     void mpvHdrHintChanged();
@@ -219,6 +231,9 @@ private:
     QString m_subtitleLanguage;
     double m_uiScale = 1.0;
     bool m_showPosterRatings = true;
+    QString m_uiMainColor;
+    QString m_uiProgressStartColor;
+    QString m_uiProgressEndColor;
     bool m_mpvHardwareDecoding = true;
     bool m_mpvGpuNext = false;
     bool m_mpvHdrHint = false;

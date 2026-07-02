@@ -14,9 +14,24 @@
 #include <QVariant>
 
 namespace {
+constexpr auto kDefaultUiMainColor = "#8460ff";
+constexpr auto kDefaultUiProgressStartColor = "#8460ff";
+constexpr auto kDefaultUiProgressEndColor = "#ff5e9a";
+
 QString stringValue(const QVariantMap &map, const QString &key)
 {
     return map.value(key).toString();
+}
+
+QString normalizedHexColor(QString color, const QString &fallback)
+{
+    color = color.trimmed();
+    if (!color.startsWith(QLatin1Char('#'))) {
+        color.prepend(QLatin1Char('#'));
+    }
+
+    static const QRegularExpression pattern(QStringLiteral("^#[0-9a-fA-F]{6}$"));
+    return pattern.match(color).hasMatch() ? color.toLower() : fallback;
 }
 
 QStringList stringListValue(const QVariant &value)
@@ -176,6 +191,12 @@ ApplicationController::ApplicationController(QObject *parent)
     m_subtitleLanguage = settings.value(QStringLiteral("subtitles/language"), QStringLiteral("eng")).toString();
     m_uiScale = settings.value(QStringLiteral("ui/scaleFactor"), 1.0).toDouble();
     m_showPosterRatings = settings.value(QStringLiteral("ui/showPosterRatings"), true).toBool();
+    m_uiMainColor = normalizedHexColor(settings.value(QStringLiteral("ui/mainColor"), QString::fromLatin1(kDefaultUiMainColor)).toString(),
+                                       QString::fromLatin1(kDefaultUiMainColor));
+    m_uiProgressStartColor = normalizedHexColor(settings.value(QStringLiteral("ui/progressStartColor"), QString::fromLatin1(kDefaultUiProgressStartColor)).toString(),
+                                                QString::fromLatin1(kDefaultUiProgressStartColor));
+    m_uiProgressEndColor = normalizedHexColor(settings.value(QStringLiteral("ui/progressEndColor"), QString::fromLatin1(kDefaultUiProgressEndColor)).toString(),
+                                              QString::fromLatin1(kDefaultUiProgressEndColor));
     m_mpvHardwareDecoding = settings.value(QStringLiteral("mpv/hardwareDecoding"), true).toBool();
     m_mpvGpuNext = settings.value(QStringLiteral("mpv/gpuNext"), false).toBool();
     m_mpvHdrHint = settings.value(QStringLiteral("mpv/hdrHint"), false).toBool();
@@ -693,6 +714,9 @@ QString ApplicationController::metadataUrl() const { return m_metadataUrl; }
 QString ApplicationController::subtitleLanguage() const { return m_subtitleLanguage; }
 double ApplicationController::uiScale() const { return m_uiScale; }
 bool ApplicationController::showPosterRatings() const { return m_showPosterRatings; }
+QString ApplicationController::uiMainColor() const { return m_uiMainColor; }
+QString ApplicationController::uiProgressStartColor() const { return m_uiProgressStartColor; }
+QString ApplicationController::uiProgressEndColor() const { return m_uiProgressEndColor; }
 bool ApplicationController::mpvHardwareDecoding() const { return m_mpvHardwareDecoding; }
 bool ApplicationController::mpvGpuNext() const { return m_mpvGpuNext; }
 bool ApplicationController::mpvHdrHint() const { return m_mpvHdrHint; }
@@ -1185,6 +1209,92 @@ void ApplicationController::setShowPosterRatings(bool enabled)
     m_showPosterRatings = enabled;
     QSettings().setValue(QStringLiteral("ui/showPosterRatings"), enabled);
     emit showPosterRatingsChanged();
+}
+
+void ApplicationController::setUiMainColor(const QString &color)
+{
+    const QString normalized = normalizedHexColor(color, QString());
+    if (normalized.isEmpty() || m_uiMainColor == normalized) {
+        return;
+    }
+
+    m_uiMainColor = normalized;
+    QSettings().setValue(QStringLiteral("ui/mainColor"), normalized);
+    emit themeColorsChanged();
+    setStatusMessage(QStringLiteral("Main color updated"));
+}
+
+void ApplicationController::setUiProgressStartColor(const QString &color)
+{
+    const QString normalized = normalizedHexColor(color, QString());
+    if (normalized.isEmpty() || m_uiProgressStartColor == normalized) {
+        return;
+    }
+
+    m_uiProgressStartColor = normalized;
+    QSettings().setValue(QStringLiteral("ui/progressStartColor"), normalized);
+    emit themeColorsChanged();
+    setStatusMessage(QStringLiteral("Progress gradient updated"));
+}
+
+void ApplicationController::setUiProgressEndColor(const QString &color)
+{
+    const QString normalized = normalizedHexColor(color, QString());
+    if (normalized.isEmpty() || m_uiProgressEndColor == normalized) {
+        return;
+    }
+
+    m_uiProgressEndColor = normalized;
+    QSettings().setValue(QStringLiteral("ui/progressEndColor"), normalized);
+    emit themeColorsChanged();
+    setStatusMessage(QStringLiteral("Progress gradient updated"));
+}
+
+void ApplicationController::setThemeColors(const QString &mainColor, const QString &progressStartColor, const QString &progressEndColor)
+{
+    const QString normalizedMain = normalizedHexColor(mainColor, QString());
+    const QString normalizedStart = normalizedHexColor(progressStartColor, QString());
+    const QString normalizedEnd = normalizedHexColor(progressEndColor, QString());
+    if (normalizedMain.isEmpty() || normalizedStart.isEmpty() || normalizedEnd.isEmpty()) {
+        return;
+    }
+    if (m_uiMainColor == normalizedMain
+        && m_uiProgressStartColor == normalizedStart
+        && m_uiProgressEndColor == normalizedEnd) {
+        return;
+    }
+
+    m_uiMainColor = normalizedMain;
+    m_uiProgressStartColor = normalizedStart;
+    m_uiProgressEndColor = normalizedEnd;
+    QSettings settings;
+    settings.setValue(QStringLiteral("ui/mainColor"), m_uiMainColor);
+    settings.setValue(QStringLiteral("ui/progressStartColor"), m_uiProgressStartColor);
+    settings.setValue(QStringLiteral("ui/progressEndColor"), m_uiProgressEndColor);
+    emit themeColorsChanged();
+    setStatusMessage(QStringLiteral("Theme colors updated"));
+}
+
+void ApplicationController::resetThemeColors()
+{
+    const QString defaultMain = QString::fromLatin1(kDefaultUiMainColor);
+    const QString defaultStart = QString::fromLatin1(kDefaultUiProgressStartColor);
+    const QString defaultEnd = QString::fromLatin1(kDefaultUiProgressEndColor);
+    if (m_uiMainColor == defaultMain
+        && m_uiProgressStartColor == defaultStart
+        && m_uiProgressEndColor == defaultEnd) {
+        return;
+    }
+
+    m_uiMainColor = defaultMain;
+    m_uiProgressStartColor = defaultStart;
+    m_uiProgressEndColor = defaultEnd;
+    QSettings settings;
+    settings.setValue(QStringLiteral("ui/mainColor"), m_uiMainColor);
+    settings.setValue(QStringLiteral("ui/progressStartColor"), m_uiProgressStartColor);
+    settings.setValue(QStringLiteral("ui/progressEndColor"), m_uiProgressEndColor);
+    emit themeColorsChanged();
+    setStatusMessage(QStringLiteral("Theme colors reset"));
 }
 
 void ApplicationController::setMpvHardwareDecoding(bool enabled)

@@ -117,8 +117,8 @@ Item {
                 height: parent.height
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
-                    GradientStop { position: 0.0; color: Theme.accent }
-                    GradientStop { position: 1.0; color: Theme.accent2 }
+                    GradientStop { position: 0.0; color: Theme.progressGradientStart }
+                    GradientStop { position: 1.0; color: Theme.progressGradientEnd }
                 }
             }
         }

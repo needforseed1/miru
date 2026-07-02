@@ -14,7 +14,7 @@ Row {
         anchors.verticalCenter: parent.verticalCenter
         spacing: 6
         Repeater {
-            model: [Theme.accent, Theme.accentBright, Theme.accent2]
+            model: [Theme.progressGradientStart, Theme.accentBright, Theme.progressGradientEnd]
             delegate: Rectangle {
                 id: dot
                 required property int index
