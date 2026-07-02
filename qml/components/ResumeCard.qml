@@ -110,6 +110,7 @@ Item {
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             height: 3
+            visible: !root.item.nextUp
             color: Qt.rgba(1, 1, 1, 0.12)
             Rectangle {
                 width: parent.width * root.progress

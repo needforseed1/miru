@@ -36,6 +36,7 @@ ApplicationWindow {
         }
         return ""
     }
+    readonly property bool preparingVisible: appController.playbackBuffering && !appController.playbackActive
 
     // "S1 · E1" label for the selected episode, derived from "ttID:season:episode"
     readonly property string episodeLabel: {
@@ -270,23 +271,6 @@ ApplicationWindow {
             Row {
                 spacing: Theme.s12
 
-                // gradient logo mark
-                Rectangle {
-                    width: 26; height: 26; radius: 9
-                    anchors.verticalCenter: parent.verticalCenter
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-                        GradientStop { position: 0.0; color: Theme.accent }
-                        GradientStop { position: 1.0; color: Theme.accent2 }
-                    }
-                    Text {
-                        anchors.centerIn: parent
-                        text: "M"
-                        color: "white"
-                        font.pixelSize: 15
-                        font.weight: Font.ExtraBold
-                    }
-                }
                 Text {
                     text: "Miru"
                     color: Theme.text
@@ -297,47 +281,48 @@ ApplicationWindow {
                 }
             }
 
-            // divider
-            Rectangle {
-                Layout.preferredWidth: 1
-                Layout.preferredHeight: 24
-                Layout.leftMargin: Theme.s8
-                Layout.rightMargin: Theme.s8
-                Layout.alignment: Qt.AlignVCenter
-                color: Qt.rgba(1, 1, 1, 0.08)
-            }
-
-            // primary navigation
-            AppButton {
-                text: "Home"
-                variant: "nav"
-                active: root.page === 0
-                onClicked: {
-                    searchField.clear()
-                    appController.clearSearch()
-                    root.page = 0
-                }
-            }
-            AppButton {
-                text: "Settings"
-                variant: "nav"
-                active: root.page === 2
-                onClicked: {
-                    root.page = 2
-                }
-            }
-
-            Item { Layout.fillWidth: true }
-
             // search (Enter to search; jumps to results from anywhere)
             SearchField {
                 id: searchField
-                Layout.preferredWidth: 340
-                Layout.maximumWidth: 440
+                Layout.fillWidth: true
+                Layout.maximumWidth: 620
                 Layout.alignment: Qt.AlignVCenter
                 placeholderText: "Search movies and shows"
                 onAccepted: root.runSearch(text)
                 onCleared: appController.clearSearch()
+            }
+
+            // primary navigation
+            RowLayout {
+                Layout.alignment: Qt.AlignVCenter
+                spacing: Theme.s12
+
+                Rectangle {
+                    Layout.preferredWidth: 1
+                    Layout.preferredHeight: 24
+                    Layout.rightMargin: Theme.s4
+                    Layout.alignment: Qt.AlignVCenter
+                    color: Qt.rgba(1, 1, 1, 0.08)
+                }
+
+                AppButton {
+                    text: "Home"
+                    variant: "nav"
+                    active: root.page === 0
+                    onClicked: {
+                        searchField.clear()
+                        appController.clearSearch()
+                        root.page = 0
+                    }
+                }
+                AppButton {
+                    text: "Settings"
+                    variant: "nav"
+                    active: root.page === 2
+                    onClicked: {
+                        root.page = 2
+                    }
+                }
             }
         }
 
@@ -347,7 +332,7 @@ ApplicationWindow {
             height: 2
             width: parent.width
             color: "transparent"
-            visible: appController.loading || appController.playbackBuffering
+            visible: appController.loading && !root.preparingVisible
             clip: true
             Rectangle {
                 id: loadingBar
@@ -361,7 +346,7 @@ ApplicationWindow {
                     GradientStop { position: 1.0; color: "transparent" }
                 }
                 XAnimator on x {
-                    running: appController.loading || appController.playbackBuffering
+                    running: appController.loading && !root.preparingVisible
                     loops: Animation.Infinite
                     from: -loadingBar.width
                     to: root.width
@@ -1258,7 +1243,7 @@ ApplicationWindow {
         id: preparingOverlay
         anchors.fill: parent
         z: 40
-        visible: appController.playbackBuffering && !appController.playbackActive
+        visible: root.preparingVisible
         opacity: visible ? 1 : 0
 
         Behavior on opacity {
@@ -1292,15 +1277,15 @@ ApplicationWindow {
             blurEnabled: true
             blur: 0.75
             blurMax: 48
-            opacity: 0.5
+            opacity: 0.68
         }
 
         Rectangle {
             anchors.fill: parent
             gradient: Gradient {
-                GradientStop { position: 0.0; color: "#ee07070c" }
-                GradientStop { position: 0.46; color: "#a607070c" }
-                GradientStop { position: 1.0; color: "#f607070c" }
+                GradientStop { position: 0.0; color: "#d007070c" }
+                GradientStop { position: 0.46; color: "#7807070c" }
+                GradientStop { position: 1.0; color: "#d807070c" }
             }
         }
 
@@ -1353,13 +1338,13 @@ ApplicationWindow {
                 elide: Text.ElideRight
             }
 
-            RowLayout {
+            Text {
+                Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter
-                spacing: Theme.s12
-
-                SearchSpinner {
-                    label: "Preparing stream"
-                }
+                text: "Preparing stream"
+                color: Theme.textDim
+                font.pixelSize: Theme.fBody
+                horizontalAlignment: Text.AlignHCenter
             }
         }
     }
@@ -1367,6 +1352,7 @@ ApplicationWindow {
     // ===== Status bar =======================================================
     footer: Rectangle {
         implicitHeight: 32
+        visible: !root.preparingVisible
         color: Theme.glassBar
         Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.06) }
         RowLayout {
