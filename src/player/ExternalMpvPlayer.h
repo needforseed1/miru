@@ -53,6 +53,7 @@ private:
     void emitProgressIfDue(bool force = false);
     void finishPlayback();
     void terminateDetachedProcess();
+    bool detachedProcessAlive() const;
 
     QLocalSocket *m_socket = nullptr;
     QByteArray m_readBuffer;

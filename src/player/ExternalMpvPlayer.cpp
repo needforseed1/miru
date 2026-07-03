@@ -17,6 +17,7 @@
 #include <QTimer>
 
 #if defined(Q_OS_UNIX)
+#include <cerrno>
 #include <signal.h>
 #endif
 
@@ -210,6 +211,20 @@ void ExternalMpvPlayer::terminateDetachedProcess()
     m_processId = 0;
 }
 
+bool ExternalMpvPlayer::detachedProcessAlive() const
+{
+    if (m_processId <= 0) {
+        return false;
+    }
+#if defined(Q_OS_UNIX)
+    // Signal 0 probes the PID without touching the process. EPERM still
+    // means it exists.
+    return ::kill(static_cast<pid_t>(m_processId), 0) == 0 || errno == EPERM;
+#else
+    return true;
+#endif
+}
+
 void ExternalMpvPlayer::setPaused(bool paused)
 {
     sendCommand(QJsonArray{QStringLiteral("set_property"), QStringLiteral("pause"), paused});
@@ -319,7 +334,19 @@ void ExternalMpvPlayer::retryConnect()
             finishPlayback();
             return;
         }
-        if (++m_connectAttempts >= 30) {
+        if (!detachedProcessAlive()) {
+            if (m_socket) {
+                m_socket->deleteLater();
+                m_socket = nullptr;
+            }
+            m_socketPath.clear();
+            emit errorOccurred(QStringLiteral("mpv exited before its control socket became available"));
+            finishPlayback();
+            return;
+        }
+        // 10s window: the first launch of a newly signed mpv on macOS goes
+        // through a Gatekeeper scan that can far exceed the old 3s budget.
+        if (++m_connectAttempts >= 100) {
             if (m_socket) {
                 m_socket->deleteLater();
                 m_socket = nullptr;
