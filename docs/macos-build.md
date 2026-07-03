@@ -1,6 +1,20 @@
 # macOS Build
 
-Use a dedicated `build-macos/` directory so macOS artifacts stay separate from Linux builds.
+Use the GitHub Actions workflow for end-user builds. Use a dedicated
+`build-macos/` directory only for local packaging or debugging.
+
+## End-User Package
+
+The `macOS App` workflow builds downloadable packages on GitHub:
+
+- It runs automatically for tags that match `v*`.
+- It can also be started manually from the GitHub Actions tab.
+- It uploads `.dmg` and `.zip` artifacts for Apple Silicon and Intel Macs.
+
+These artifacts include the Qt runtime, bundled mpv resources, and a bundled
+`mpv` executable with non-system Homebrew libraries copied into the app bundle.
+They are ad-hoc signed, but not notarized. Public distribution without the
+Gatekeeper warning still requires a Developer ID certificate and notarization.
 
 ## Prerequisites
 
@@ -44,6 +58,14 @@ Run `macdeployqt` from the Qt installation used to build the app:
 
 ```bash
 macdeployqt build-macos/Miru.app -qmldir="$PWD/qml"
+```
+
+Or run the repository packaging helper, which deploys Qt, copies non-system
+`mpv` libraries when bundled mpv is present, applies an ad-hoc signature, and
+creates `.dmg` and `.zip` outputs:
+
+```bash
+scripts/package-macos.sh
 ```
 
 ## Verify

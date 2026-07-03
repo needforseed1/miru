@@ -126,6 +126,10 @@ cmake --build build --target miru_qmllint
 
 ### macOS Bundle
 
+For end users, prefer the GitHub Actions `macOS App` workflow artifacts. That
+workflow runs on `v*` tags and can also be started manually. It uploads `.dmg`
+and `.zip` packages for Apple Silicon and Intel Macs.
+
 For macOS app bundle builds, use a separate build directory:
 
 ```bash
@@ -133,8 +137,9 @@ cmake -S . -B build-macos -DCMAKE_BUILD_TYPE=Release -DMIRU_BUNDLED_MPV=/path/to
 cmake --build build-macos
 ```
 
-This produces `Miru.app` with bundled mpv resources. See `docs/macos-build.md`
-for packaging and verification notes.
+This produces `Miru.app` with bundled mpv resources. Run
+`scripts/package-macos.sh` on macOS to deploy Qt and create local `.dmg`/`.zip`
+packages. See `docs/macos-build.md` for packaging and verification notes.
 
 ## Settings
 

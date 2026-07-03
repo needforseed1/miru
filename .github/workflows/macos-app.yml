@@ -1,0 +1,56 @@
+name: macOS App
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  package:
+    name: Package macOS ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x64
+            runner: macos-15-intel
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install Homebrew dependencies
+        run: brew install ninja mpv
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4.3.1
+        with:
+          version: '6.8.*'
+          modules: 'qtimageformats'
+
+      - name: Configure
+        run: |
+          cmake -S . -B build-macos -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR" \
+            -DMIRU_BUNDLED_MPV="$(command -v mpv)"
+
+      - name: Build
+        run: cmake --build build-macos --parallel
+
+      - name: Package
+        env:
+          MIRU_ARTIFACT_NAME: Miru-macOS-${{ matrix.arch }}
+        run: scripts/package-macos.sh
+
+      - name: Upload app packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: Miru-macOS-${{ matrix.arch }}
+          path: |
+            build-macos/package/Miru-macOS-${{ matrix.arch }}.dmg
+            build-macos/package/Miru-macOS-${{ matrix.arch }}.zip
