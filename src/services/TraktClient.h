@@ -109,4 +109,6 @@ private:
     int m_pollIntervalSeconds = 5;
     int m_pollFailures = 0;
     bool m_busy = false;
+    bool m_refreshInFlight = false;
+    QList<std::function<void(bool)>> m_refreshHandlers;
 };

@@ -52,6 +52,7 @@ private:
     void selectPreferredSubtitle(const QJsonArray &tracks);
     void emitProgressIfDue(bool force = false);
     void finishPlayback();
+    void terminateDetachedProcess();
 
     QLocalSocket *m_socket = nullptr;
     QByteArray m_readBuffer;
@@ -60,9 +61,11 @@ private:
     QString m_preferredSubtitleLanguage;
     int m_connectAttempts = 0;
     int m_generation = 0;
+    qint64 m_processId = 0; // detached mpv PID, for the pre-IPC teardown path
     double m_lastPosition = 0.0;
     double m_lastDuration = 0.0;
     bool m_paused = false;
+    bool m_everConnected = false; // IPC socket connected at least once this session
     bool m_finishEmitted = false;
     bool m_playingEmitted = false;
     bool m_subtitleSelected = false;

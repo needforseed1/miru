@@ -16,6 +16,10 @@
 #include <QStandardPaths>
 #include <QTimer>
 
+#if defined(Q_OS_UNIX)
+#include <signal.h>
+#endif
+
 namespace {
 QString firstExecutablePath(const QStringList &candidates)
 {
@@ -170,10 +174,12 @@ bool ExternalMpvPlayer::play(const QString &url, const QString &title,
         }
     }
 
-    if (!QProcess::startDetached(mpv, args)) {
+    qint64 processId = 0;
+    if (!QProcess::startDetached(mpv, args, QString(), &processId)) {
         emit errorOccurred(QStringLiteral("Failed to start mpv"));
         return false;
     }
+    m_processId = processId;
 
     startWatcher(socketPath);
     emit playbackStarted();
@@ -182,8 +188,26 @@ bool ExternalMpvPlayer::play(const QString &url, const QString &title,
 
 void ExternalMpvPlayer::stop()
 {
-    sendCommand(QJsonArray{QStringLiteral("quit")});
+    const bool quitSent = sendCommand(QJsonArray{QStringLiteral("quit")});
+    // If the IPC socket is not connected yet (mpv still starting up), the quit
+    // command is undeliverable and mpv would be left playing with no watcher.
+    // Terminate the process directly instead. m_finishEmitted guards against
+    // signalling a recycled PID after mpv already exited on its own.
+    if (!quitSent && !m_finishEmitted) {
+        terminateDetachedProcess();
+    }
     resetWatcher(true);
+}
+
+void ExternalMpvPlayer::terminateDetachedProcess()
+{
+    if (m_processId <= 0) {
+        return;
+    }
+#if defined(Q_OS_UNIX)
+    ::kill(static_cast<pid_t>(m_processId), SIGTERM);
+#endif
+    m_processId = 0;
 }
 
 void ExternalMpvPlayer::setPaused(bool paused)
@@ -204,7 +228,9 @@ void ExternalMpvPlayer::seekRelative(double seconds)
 void ExternalMpvPlayer::resetWatcher(bool emitFinished)
 {
     ++m_generation;
-    if (emitFinished) {
+    const bool hadSession = m_socket || !m_socketPath.isEmpty() || m_processId > 0
+        || m_playingEmitted || m_progressTimer.isValid();
+    if (emitFinished && hadSession) {
         finishPlayback();
     }
 
@@ -220,9 +246,11 @@ void ExternalMpvPlayer::resetWatcher(bool emitFinished)
     m_pendingSubtitles.clear();
     m_preferredSubtitleLanguage.clear();
     m_connectAttempts = 0;
+    m_processId = 0;
     m_lastPosition = 0.0;
     m_lastDuration = 0.0;
     m_paused = false;
+    m_everConnected = false;
     m_finishEmitted = false;
     m_playingEmitted = false;
     m_subtitleSelected = false;
@@ -256,6 +284,7 @@ void ExternalMpvPlayer::retryConnect()
         if (generation != m_generation || !m_socket) {
             return;
         }
+        m_everConnected = true;
         m_socket->write("{\"command\":[\"observe_property\",1,\"time-pos\"]}\n");
         m_socket->write("{\"command\":[\"observe_property\",2,\"duration\"]}\n");
         m_socket->write("{\"command\":[\"observe_property\",3,\"pause\"]}\n");
@@ -282,12 +311,23 @@ void ExternalMpvPlayer::retryConnect()
         if (generation != m_generation || m_socketPath.isEmpty()) {
             return;
         }
+        // Once the socket has connected, a socket error means mpv closed it
+        // (normal exit emits PeerClosedError). That is the end of the session,
+        // not a reason to re-enter the connect-retry loop against a socket
+        // path that no longer exists.
+        if (m_everConnected) {
+            finishPlayback();
+            return;
+        }
         if (++m_connectAttempts >= 30) {
             if (m_socket) {
                 m_socket->deleteLater();
                 m_socket = nullptr;
             }
             m_socketPath.clear();
+            // mpv is running but uncontrollable; don't leave it playing
+            // unsupervised behind an error message.
+            terminateDetachedProcess();
             emit errorOccurred(QStringLiteral("mpv started, but its control socket did not become available"));
             finishPlayback();
             return;

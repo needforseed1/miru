@@ -922,6 +922,12 @@ bool ApplicationController::startPlayback(const QVariantMap &playbackMedia,
         return false;
     }
 
+    // End any playback still running *before* m_currentPlaybackMedia changes:
+    // stop() quits the old mpv and emits its final progress while the old
+    // media is still current, so the old session's position cannot be
+    // recorded (or scrobbled to Trakt) against the title starting now.
+    m_player.stop();
+
     const int generation = ++m_playbackStartGeneration;
     const QStringList extraArgs = QProcess::splitCommand(m_mpvExtraArgs);
     m_currentPlaybackMedia = playbackMedia;

@@ -1,6 +1,7 @@
 #include <QtTest/QtTest>
 
 #include <QDir>
+#include <QFile>
 #include <QSettings>
 #include <QSignalSpy>
 #include <QStandardPaths>
@@ -19,6 +20,7 @@ private slots:
     void loadsDefaults();
     void reportsSourceHealth();
     void persistsUserSettings();
+    void savesTraktCredentialsOwnerOnly();
     void ignoresInvalidScale();
     void ignoresInvalidThemeColors();
 };
@@ -199,6 +201,23 @@ void ApplicationSettingsTest::persistsUserSettings()
     QCOMPARE(reloaded.mpvModernz(), false);
     QCOMPARE(reloaded.mpvFullscreen(), false);
     QCOMPARE(reloaded.mpvExtraArgs(), QStringLiteral("--profile=high-quality --deband=yes"));
+}
+
+void ApplicationSettingsTest::savesTraktCredentialsOwnerOnly()
+{
+    ApplicationController controller;
+    controller.setTraktClientId(QStringLiteral("client-id"));
+    controller.setTraktClientSecret(QStringLiteral("client-secret"));
+
+    QSettings settings;
+    settings.sync();
+
+    QVERIFY2(QFile::exists(settings.fileName()), qPrintable(settings.fileName()));
+    const QFileDevice::Permissions expected = QFileDevice::ReadOwner | QFileDevice::WriteOwner
+        | QFileDevice::ReadUser | QFileDevice::WriteUser;
+    QCOMPARE(static_cast<int>(QFile::permissions(settings.fileName())), static_cast<int>(expected));
+    QCOMPARE(settings.value(QStringLiteral("trakt/clientId")).toString(), QStringLiteral("client-id"));
+    QCOMPARE(settings.value(QStringLiteral("trakt/clientSecret")).toString(), QStringLiteral("client-secret"));
 }
 
 void ApplicationSettingsTest::ignoresInvalidScale()

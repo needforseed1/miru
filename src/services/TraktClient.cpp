@@ -1,5 +1,6 @@
 #include "TraktClient.h"
 
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -79,6 +80,15 @@ QString showPathId(const QJsonObject &ids)
         return QStringLiteral("tmdb:%1").arg(tmdb);
     }
     return {};
+}
+
+// The QSettings INI carries the Trakt client secret and OAuth tokens in
+// plaintext; the least we can do is keep it readable by the owner only.
+void restrictSettingsFile(QSettings &settings)
+{
+    settings.sync();
+    QFile::setPermissions(settings.fileName(),
+                          QFileDevice::ReadOwner | QFileDevice::WriteOwner);
 }
 
 qint64 pausedAtSeconds(const QJsonObject &entry)
@@ -471,6 +481,7 @@ void TraktClient::persistCredentials()
     QSettings settings;
     settings.setValue(QStringLiteral("trakt/clientId"), m_clientId);
     settings.setValue(QStringLiteral("trakt/clientSecret"), m_clientSecret);
+    restrictSettingsFile(settings);
 }
 
 void TraktClient::persistTokens()
@@ -481,6 +492,7 @@ void TraktClient::persistTokens()
     settings.setValue(QStringLiteral("trakt/tokenCreatedAt"), m_tokenCreatedAt);
     settings.setValue(QStringLiteral("trakt/tokenExpiresIn"), m_tokenExpiresIn);
     settings.setValue(QStringLiteral("trakt/username"), m_username);
+    restrictSettingsFile(settings);
 }
 
 void TraktClient::clearTokens()
@@ -622,23 +634,58 @@ void TraktClient::refreshAccessToken(const std::function<void(bool)> &handler)
         return;
     }
 
+    // Trakt refresh tokens are single-use: concurrent authorized calls (e.g.
+    // the parallel show-progress requests, or the activity poll racing a
+    // scrobble) must share one refresh request instead of each burning the
+    // same token and getting invalid_grant back.
+    m_refreshHandlers.append(handler);
+    if (m_refreshInFlight) {
+        return;
+    }
+    m_refreshInFlight = true;
+
     postJson(QStringLiteral("/oauth/token"),
              jsonBody({{QStringLiteral("refresh_token"), m_refreshToken},
                        {QStringLiteral("client_id"), m_clientId},
                        {QStringLiteral("client_secret"), m_clientSecret},
                        {QStringLiteral("grant_type"), QStringLiteral("refresh_token")}}),
-             [this, handler](QNetworkReply *reply) {
-        const QByteArray payload = reply->readAll();
-        const int status = httpStatus(reply);
-        if (reply->error() != QNetworkReply::NoError || status < 200 || status >= 300) {
-            setStatus(apiErrorMessage(payload, QStringLiteral("Trakt token refresh failed")));
-            emit errorOccurred(m_statusMessage);
-            handler(false);
+             [this](QNetworkReply *reply) {
+        m_refreshInFlight = false;
+        const QList<std::function<void(bool)>> handlers = m_refreshHandlers;
+        m_refreshHandlers.clear();
+
+        // Disconnected (tokens cleared) while the refresh was in flight:
+        // don't resurrect the session from the late response.
+        if (m_refreshToken.isEmpty()) {
+            for (const auto &pending : handlers) {
+                pending(false);
+            }
             return;
         }
 
-        applyTokenResponse(payload);
-        handler(true);
+        const QByteArray payload = reply->readAll();
+        const int status = httpStatus(reply);
+        const bool ok = reply->error() == QNetworkReply::NoError && status >= 200 && status < 300;
+        if (ok) {
+            applyTokenResponse(payload);
+        } else {
+            const QString error = QJsonDocument::fromJson(payload).object()
+                                      .value(QStringLiteral("error")).toString();
+            if (status == 401 || error == QStringLiteral("invalid_grant")) {
+                // The refresh token is dead; staying "connected" would just
+                // retry (and fail) on every activity poll forever. Drop the
+                // session so the UI clearly asks for a reconnect.
+                clearTokens();
+                setStatus(QStringLiteral("Trakt session expired — reconnect in Settings"));
+            } else {
+                setStatus(apiErrorMessage(payload, QStringLiteral("Trakt token refresh failed")));
+            }
+            emit errorOccurred(m_statusMessage);
+        }
+
+        for (const auto &pending : handlers) {
+            pending(ok);
+        }
     });
 }
 

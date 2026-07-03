@@ -20,6 +20,7 @@ private slots:
     void ignoresEarlyProgressAndRemovesCompletedItems();
     void appliesLandscapeMetadataToExistingEntries();
     void persistsSeriesProgress();
+    void savesWatchHistoryOwnerOnly();
 };
 
 namespace {
@@ -159,6 +160,22 @@ void WatchHistoryTest::persistsSeriesProgress()
     QCOMPARE(item.value(QStringLiteral("key")).toString(), QStringLiteral("series:tt0944947:1:1"));
     QCOMPARE(item.value(QStringLiteral("position")).toDouble(), 120.0);
     QCOMPARE(reloaded.positionFor(seriesMedia()), 115.0);
+}
+
+void WatchHistoryTest::savesWatchHistoryOwnerOnly()
+{
+    QString store;
+    {
+        WatchHistory history;
+        history.record(seriesMedia(), 120.0, 1200.0);
+        store = QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
+            .filePath(QStringLiteral("watch_history.json"));
+    }
+
+    QVERIFY2(QFile::exists(store), qPrintable(store));
+    const QFileDevice::Permissions expected = QFileDevice::ReadOwner | QFileDevice::WriteOwner
+        | QFileDevice::ReadUser | QFileDevice::WriteUser;
+    QCOMPARE(static_cast<int>(QFile::permissions(store)), static_cast<int>(expected));
 }
 
 QTEST_MAIN(WatchHistoryTest)

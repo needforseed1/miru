@@ -12,9 +12,10 @@
 ## Build And Verify
 
 - Configure/build from repo root: `cmake -S . -B build && cmake --build build`.
-- Run locally with a desktop session: `./build/stremio-linux`.
-- Wayland scaling check: `QT_QPA_PLATFORM=wayland ./build/stremio-linux`.
-- No test, lint, formatter, CI, or CMake preset config currently exists; use a clean CMake build as the focused verification step.
+- Run the Qt test suite after building: `ctest --test-dir build --output-on-failure`.
+- Run locally with a desktop session: `./build/miru`.
+- Wayland scaling check: `QT_QPA_PLATFORM=wayland ./build/miru`.
+- No formatter, CI, or CMake preset config currently exists; use a clean CMake build plus `ctest` as the focused verification step.
 - `build/` is ignored. Do not commit generated CMake/QML cache output.
 
 ## Dependencies That Are Easy To Miss

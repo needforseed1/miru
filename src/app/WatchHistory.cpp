@@ -292,4 +292,8 @@ void WatchHistory::saveNow()
         return;
     }
     file.write(QJsonDocument(array).toJson(QJsonDocument::Indented));
+    file.close();
+    // Entries embed the stream URL and any auth headers (debrid/WebDAV
+    // Authorization) needed to resume playback — keep the file owner-only.
+    file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
 }
