@@ -79,10 +79,11 @@ jobs:
           title="Miru ${TAG_NAME#v}"
           notes="Unsigned macOS builds for Apple Silicon and Intel Macs. macOS may show a Gatekeeper warning on first launch."
 
-          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            gh release upload "$TAG_NAME" release-assets/* --clobber
+          if gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" release-assets/* --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$TAG_NAME" release-assets/* \
+              --repo "$GITHUB_REPOSITORY" \
               --title "$title" \
               --notes "$notes"
           fi
