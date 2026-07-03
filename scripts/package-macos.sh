@@ -76,7 +76,11 @@ if [[ -x "$mpv_binary" ]]; then
         binary="${queue[0]}"
         queue=("${queue[@]:1}")
 
-        if contains_value "$binary" "${visited[@]}" || [[ ! -e "$binary" ]]; then
+        if [[ ! -e "$binary" ]]; then
+            continue
+        fi
+
+        if ((${#visited[@]} > 0)) && contains_value "$binary" "${visited[@]}"; then
             continue
         fi
         visited+=("$binary")
@@ -91,7 +95,7 @@ if [[ -x "$mpv_binary" ]]; then
             base="$(basename "$dep")"
             dest="$lib_dir/$base"
 
-            if ! contains_value "$dest" "${copied[@]}"; then
+            if ((${#copied[@]} == 0)) || ! contains_value "$dest" "${copied[@]}"; then
                 cp -fL "$dep" "$dest"
                 chmod u+w "$dest"
                 copied+=("$dest")
