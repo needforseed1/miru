@@ -66,6 +66,10 @@ if [[ -n "$crypto_dep" && "$crypto_dep" != @* ]]; then
     install_name_tool -change "$crypto_dep" "@loader_path/libcrypto.3.dylib" "$frameworks_dir/libssl.3.dylib"
 fi
 
+# install_name_tool invalidates signatures; re-sign here because the final
+# bundle-level codesign does not descend into these.
+codesign --force --sign - "$frameworks_dir/libcrypto.3.dylib" "$frameworks_dir/libssl.3.dylib"
+
 mpv_binary="$app_bundle/Contents/Resources/mpv/mpv"
 if [[ -x "$mpv_binary" ]]; then
     echo "Bundling non-system mpv libraries"
@@ -144,6 +148,15 @@ if [[ -x "$mpv_binary" ]]; then
             rewrite_dependency "$binary" "$dep" "$base"
         done < <(otool -L "$binary" | awk 'NR > 1 {print $1}')
     done
+
+    # install_name_tool invalidated these signatures, and codesign --deep
+    # does not re-sign executables under Contents/Resources — on Apple
+    # Silicon an invalid signature means the kernel kills mpv at launch.
+    echo "Re-signing bundled mpv and its libraries"
+    while IFS= read -r -d '' lib; do
+        codesign --force --sign - "$lib"
+    done < <(find "$lib_dir" -type f -name '*.dylib' -print0)
+    codesign --force --sign - "$mpv_binary"
 else
     echo "Bundled mpv not found; packaged app will fall back to mpv on PATH"
 fi
