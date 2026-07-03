@@ -35,8 +35,22 @@ if [[ -x "$mpv_binary" ]]; then
     mkdir -p "$lib_dir"
 
     declare -a queue=("$mpv_binary")
-    declare -A visited=()
-    declare -A copied=()
+    declare -a visited=()
+    declare -a copied=()
+
+    contains_value() {
+        local needle="$1"
+        shift
+
+        local item
+        for item in "$@"; do
+            if [[ "$item" == "$needle" ]]; then
+                return 0
+            fi
+        done
+
+        return 1
+    }
 
     is_system_library() {
         local dep="$1"
@@ -62,10 +76,10 @@ if [[ -x "$mpv_binary" ]]; then
         binary="${queue[0]}"
         queue=("${queue[@]:1}")
 
-        if [[ -n "${visited[$binary]:-}" || ! -e "$binary" ]]; then
+        if contains_value "$binary" "${visited[@]}" || [[ ! -e "$binary" ]]; then
             continue
         fi
-        visited["$binary"]=1
+        visited+=("$binary")
 
         while IFS= read -r dep; do
             [[ -n "$dep" ]] || continue
@@ -77,10 +91,10 @@ if [[ -x "$mpv_binary" ]]; then
             base="$(basename "$dep")"
             dest="$lib_dir/$base"
 
-            if [[ -z "${copied[$dest]:-}" ]]; then
+            if ! contains_value "$dest" "${copied[@]}"; then
                 cp -fL "$dep" "$dest"
                 chmod u+w "$dest"
-                copied["$dest"]=1
+                copied+=("$dest")
                 queue+=("$dest")
                 install_name_tool -id "@loader_path/$base" "$dest" 2>/dev/null || true
             fi
