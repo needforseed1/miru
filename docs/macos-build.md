@@ -7,9 +7,10 @@ Use the GitHub Actions workflow for end-user builds. Use a dedicated
 
 The `macOS App` workflow builds downloadable packages on GitHub:
 
-- It runs automatically for tags that match `v*`.
+- It runs automatically for tags that match `v*` and attaches packages to the
+  matching GitHub Release.
 - It can also be started manually from the GitHub Actions tab.
-- It uploads `.dmg` and `.zip` artifacts for Apple Silicon and Intel Macs.
+- It uploads `.dmg` and `.zip` packages for Apple Silicon and Intel Macs.
 
 These artifacts include the Qt runtime, bundled mpv resources, and a bundled
 `mpv` executable with non-system Homebrew libraries copied into the app bundle.

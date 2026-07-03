@@ -6,6 +6,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   package:
     name: Package macOS ${{ matrix.arch }}
@@ -54,3 +57,32 @@ jobs:
           path: |
             build-macos/package/Miru-macOS-${{ matrix.arch }}.dmg
             build-macos/package/Miru-macOS-${{ matrix.arch }}.zip
+
+  release:
+    name: Publish GitHub Release
+    needs: package
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download packaged apps
+        uses: actions/download-artifact@v6
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          title="Miru ${TAG_NAME#v}"
+          notes="Unsigned macOS builds for Apple Silicon and Intel Macs. macOS may show a Gatekeeper warning on first launch."
+
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" release-assets/* --clobber
+          else
+            gh release create "$TAG_NAME" release-assets/* \
+              --title "$title" \
+              --notes "$notes"
+          fi

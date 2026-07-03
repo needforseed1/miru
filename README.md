@@ -126,9 +126,10 @@ cmake --build build --target miru_qmllint
 
 ### macOS Bundle
 
-For end users, prefer the GitHub Actions `macOS App` workflow artifacts. That
-workflow runs on `v*` tags and can also be started manually. It uploads `.dmg`
-and `.zip` packages for Apple Silicon and Intel Macs.
+For end users, prefer the GitHub Release downloads produced by the `macOS App`
+workflow. It runs on `v*` tags and attaches `.dmg` and `.zip` packages for
+Apple Silicon and Intel Macs to the matching GitHub Release. The workflow can
+also be started manually for temporary CI artifacts.
 
 For macOS app bundle builds, use a separate build directory:
 
