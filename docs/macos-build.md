@@ -24,6 +24,8 @@ Gatekeeper warning still requires a Developer ID certificate and notarization.
 - Qt 6.5 or newer with Quick, Quick Controls 2, Quick Layouts, QtQuick.Effects, Network, SQL, Concurrent, and image format plugins.
 - Qt WebP image format plugin for Cinemeta artwork.
 - zlib.
+- Homebrew `openssl@3`; the packaging script bundles `libssl`/`libcrypto` so
+  Qt can use its OpenSSL TLS backend (Secure Transport has no TLS 1.3).
 - An `mpv` executable to bundle.
 
 For local development, a Homebrew `mpv` can be used if its runtime libraries are also available on the machine. For distribution, use a self-contained/signable mpv build and include the required license notices.
@@ -80,6 +82,8 @@ scripts/package-macos.sh
 - Confirm playback progress, pause, seek, stop, and resume work.
 - Confirm WebP poster artwork loads.
 - Confirm IMDb ratings cache downloads and builds.
+- Confirm a TLS 1.3-only addon URL loads (verifies the bundled OpenSSL
+  backend; Secure Transport would fail with handshake error -9836).
 
 ## Notes
 

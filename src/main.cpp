@@ -6,6 +6,7 @@
 #include <QQmlContext>
 #include <QQuickStyle>
 #include <QSettings>
+#include <QSslSocket>
 
 #include "app/ApplicationController.h"
 #include "app/CachingNetworkFactory.h"
@@ -32,6 +33,18 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     app.setApplicationDisplayName(QStringLiteral("Miru"));
     QQuickStyle::setStyle("Basic");
+
+#ifdef Q_OS_MACOS
+    // Qt defaults to Secure Transport on macOS, which tops out at TLS 1.2 and
+    // fails against TLS 1.3-only servers (handshake error -9836). Prefer the
+    // OpenSSL backend; fall back if the bundled libssl/libcrypto won't load.
+    if (QSslSocket::availableBackends().contains(QStringLiteral("openssl"))) {
+        QSslSocket::setActiveBackend(QStringLiteral("openssl"));
+        if (!QSslSocket::supportsSsl()) {
+            QSslSocket::setActiveBackend(QStringLiteral("securetransport"));
+        }
+    }
+#endif
 
     // Bundled UI font; named instances (Medium/SemiBold/…) map to QML
     // font.weight. Fall back to the system font if registration fails.

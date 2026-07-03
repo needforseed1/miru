@@ -28,6 +28,44 @@ mkdir -p "$output_dir"
 echo "Deploying Qt runtime"
 macdeployqt "$app_bundle" -qmldir="$qmldir" -always-overwrite
 
+echo "Bundling OpenSSL for the Qt TLS backend"
+frameworks_dir="$app_bundle/Contents/Frameworks"
+tls_plugin_dir="$app_bundle/Contents/PlugIns/tls"
+openssl_backend="$tls_plugin_dir/libqopensslbackend.dylib"
+
+if [[ ! -e "$openssl_backend" ]] && command -v qtpaths >/dev/null 2>&1; then
+    qt_plugins="$(qtpaths --plugin-dir 2>/dev/null || true)"
+    if [[ -n "$qt_plugins" && -e "$qt_plugins/tls/libqopensslbackend.dylib" ]]; then
+        mkdir -p "$tls_plugin_dir"
+        cp -fL "$qt_plugins/tls/libqopensslbackend.dylib" "$openssl_backend"
+    fi
+fi
+
+if [[ ! -e "$openssl_backend" ]]; then
+    echo "Qt OpenSSL TLS backend plugin is missing from the bundle; without it the app is stuck on Secure Transport (no TLS 1.3)" >&2
+    exit 1
+fi
+
+openssl_prefix="$(brew --prefix openssl@3 2>/dev/null || true)"
+if [[ -z "$openssl_prefix" || ! -e "$openssl_prefix/lib/libssl.3.dylib" ]]; then
+    echo "Homebrew openssl@3 not found; it is required to bundle libssl/libcrypto for the Qt OpenSSL TLS backend" >&2
+    exit 1
+fi
+
+# Qt dlopens these by leaf name; dyld resolves that through the main
+# executable's LC_RPATH, which macdeployqt points at Contents/Frameworks.
+mkdir -p "$frameworks_dir"
+for lib in libssl.3.dylib libcrypto.3.dylib; do
+    cp -fL "$openssl_prefix/lib/$lib" "$frameworks_dir/$lib"
+    chmod u+w "$frameworks_dir/$lib"
+    install_name_tool -id "@rpath/$lib" "$frameworks_dir/$lib"
+done
+
+crypto_dep="$(otool -L "$frameworks_dir/libssl.3.dylib" | awk 'NR > 1 && /libcrypto/ {print $1; exit}')"
+if [[ -n "$crypto_dep" && "$crypto_dep" != @* ]]; then
+    install_name_tool -change "$crypto_dep" "@loader_path/libcrypto.3.dylib" "$frameworks_dir/libssl.3.dylib"
+fi
+
 mpv_binary="$app_bundle/Contents/Resources/mpv/mpv"
 if [[ -x "$mpv_binary" ]]; then
     echo "Bundling non-system mpv libraries"

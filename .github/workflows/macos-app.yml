@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Install Homebrew dependencies
-        run: brew install ninja mpv
+        run: brew install ninja mpv openssl@3
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4.3.1
