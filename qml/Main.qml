@@ -36,7 +36,7 @@ ApplicationWindow {
         }
         return ""
     }
-    readonly property bool preparingVisible: appController.playbackBuffering && !appController.playbackActive
+    readonly property bool preparingVisible: appController.playbackBuffering
     readonly property var themeColorPresets: [
         { name: "Miru", main: "#8460ff", start: "#8460ff", end: "#ff5e9a" },
         { name: "Ocean", main: "#2f9cff", start: "#2f9cff", end: "#18d6a3" },
