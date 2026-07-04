@@ -51,9 +51,10 @@ private:
     };
 
     void getJson(const QUrl &url, const std::function<void(const QJsonObject &)> &handler,
-                 const std::function<void()> &errorHandler = {});
+                 const std::function<void()> &errorHandler = {}, int attempt = 0);
     void drainPendingSearches();
     void fallbackCatalogs();
+    void prewarmConnection();
     QVariantMap normalizeMeta(const QJsonObject &meta) const;
     QVariantList normalizeVideos(const QJsonArray &videos) const;
     QString activeBase() const { return m_addonUrl.isEmpty() ? m_baseUrl : m_addonUrl; }

@@ -1324,6 +1324,11 @@ ApplicationWindow {
                     statusState: root.sourceHealthState("mpv")
 
                     SettingsCheck {
+                        text: "Autoplay next episode (matching release, short countdown)"
+                        checked: appController.autoAdvanceEnabled
+                        onToggled: appController.autoAdvanceEnabled = checked
+                    }
+                    SettingsCheck {
                         text: "Use ModernZ mpv control overlay"
                         checked: appController.mpvModernz
                         onToggled: appController.mpvModernz = checked
@@ -1493,6 +1498,120 @@ ApplicationWindow {
                 color: Theme.textDim
                 font.pixelSize: Theme.fBody
                 horizontalAlignment: Text.AlignHCenter
+            }
+        }
+    }
+
+    // ===== Up next (auto-advance) ==========================================
+    Rectangle {
+        id: upNextCard
+        visible: appController.autoAdvanceActive
+        z: 45
+        width: Math.min(400, parent.width - Theme.s24 * 2)
+        height: upNextRow.implicitHeight + Theme.s16 * 2
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: Theme.s24
+        radius: Theme.rXl
+        color: "#f2131421"
+        border.color: Qt.rgba(1, 1, 1, 0.14)
+        border.width: 1
+        opacity: visible ? 1 : 0
+
+        Behavior on opacity {
+            NumberAnimation { duration: Theme.durMed }
+        }
+
+        readonly property var media: appController.autoAdvanceMedia || ({})
+        readonly property string episodeText: media.season > 0 && media.episode > 0
+                                              ? "S" + media.season + " · E" + media.episode
+                                                + (media.episodeTitle ? " · " + media.episodeTitle : "")
+                                              : ""
+
+        RowLayout {
+            id: upNextRow
+            anchors.fill: parent
+            anchors.margins: Theme.s16
+            spacing: Theme.s16
+
+            Rectangle {
+                Layout.preferredWidth: 104
+                Layout.preferredHeight: 58
+                Layout.alignment: Qt.AlignTop
+                radius: Theme.rMd
+                color: Theme.surface
+                clip: true
+                visible: (upNextCard.media.thumbnail || upNextCard.media.background || "") !== ""
+
+                Image {
+                    anchors.fill: parent
+                    source: upNextCard.media.thumbnail || upNextCard.media.background || ""
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 4
+
+                Text {
+                    text: appController.autoAdvanceSecondsLeft > 0
+                          ? "Up next · " + appController.autoAdvanceSecondsLeft + "s"
+                          : appController.autoAdvanceReleaseTitle !== ""
+                            ? "Up next"
+                            : "Up next · finding release…"
+                    color: Theme.accentBright
+                    font.pixelSize: Theme.fTiny
+                    font.weight: Font.Bold
+                    font.letterSpacing: 0.6
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    text: upNextCard.media.name || ""
+                    color: Theme.text
+                    font.pixelSize: Theme.fBody
+                    font.weight: Font.Bold
+                    maximumLineCount: 1
+                    elide: Text.ElideRight
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    visible: upNextCard.episodeText !== ""
+                    text: upNextCard.episodeText
+                    color: Theme.textDim
+                    font.pixelSize: Theme.fSmall
+                    maximumLineCount: 1
+                    elide: Text.ElideRight
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    visible: appController.autoAdvanceReleaseTitle !== ""
+                    text: appController.autoAdvanceReleaseTitle
+                    color: Theme.textMute
+                    font.pixelSize: Theme.fTiny
+                    maximumLineCount: 1
+                    elide: Text.ElideRight
+                }
+
+                RowLayout {
+                    Layout.topMargin: Theme.s8
+                    spacing: Theme.s8
+
+                    AppButton {
+                        text: "Play now"
+                        variant: "primary"
+                        onClicked: appController.playAutoAdvanceNow()
+                    }
+                    AppButton {
+                        text: "Cancel"
+                        onClicked: appController.cancelAutoAdvance()
+                    }
+                    Item { Layout.fillWidth: true }
+                }
             }
         }
     }

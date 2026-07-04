@@ -25,10 +25,14 @@ int main(int argc, char *argv[])
         }
     }
 
-    // Let fractional desktop scaling (1.25, 1.5, …) pass through instead of
-    // being rounded to an integer — important for crisp sizing on Wayland.
+#if defined(Q_OS_LINUX)
+    // Let fractional desktop scaling (1.25, 1.5, ...) pass through instead of
+    // being rounded to an integer. This is primarily a Wayland/Linux concern;
+    // keep macOS on Qt's native high-DPI policy to avoid odd pointer mapping
+    // when Cocoa and Qt translate between logical and device pixels.
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(
         Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+#endif
 
     QGuiApplication app(argc, argv);
     app.setApplicationDisplayName(QStringLiteral("Miru"));

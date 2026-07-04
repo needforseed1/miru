@@ -3,7 +3,8 @@
 ## Project Shape
 
 - Qt 6/QML + C++17 desktop app; entrypoint is `src/main.cpp`, which exposes `ApplicationController` to QML as `appController` and loads QML module `StremioLinux` / `Main`.
-- `src/app/ApplicationController.*` wires the app: metadata catalogs/search, AIOStreams releases, subtitles, IMDb rating cache, settings, and external mpv playback.
+- `src/app/ApplicationController.*` wires the app: metadata catalogs/search, AIOStreams releases, subtitles, IMDb rating cache, settings, and external mpv playback. It also owns auto-advance (on a ≥92% series finish it fetches the next episode's releases through a dedicated second `AIOStreamsClient`, picks the release most similar to the one just played, and launches after a cancellable countdown) and builds a local Next Up rail from watch history when Trakt is not connected.
+- `src/app/WatchHistory.*` persists resume progress to `watch_history.json`. Finished episodes are kept with a `watched: true` flag — they feed local Next Up and auto-advance — so do not "clean up" watched entries as stale data.
 - `src/services/CinemetaClient.*` is the metadata/catalog client. Empty metadata URL means Cinemeta; a configured URL can point at AIOMetadata or another Stremio-compatible metadata addon.
 - `src/services/AIOStreamsClient.*` is release fetching/filtering. It intentionally rejects `infoHash`, magnet, and non-HTTP streams; keep request headers from `behaviorHints.proxyHeaders.request` because mpv needs them for some providers.
 - `src/player/ExternalMpvPlayer.*` launches external `mpv`; playback is not embedded yet.
@@ -28,7 +29,8 @@
 ## Persistent Settings
 
 - Settings use `QSettings` with organization `AIOStreamsLinux` and app `AIOStreams Linux`.
-- Important keys: `addons/aioStreamsUrl`, `addons/metadataUrl`, `subtitles/language`, `ui/scaleFactor`, `imdb/lastRefresh`, `mpv/hardwareDecoding`, `mpv/gpuNext`, `mpv/hdrHint`, `mpv/extraArgs`.
+- Important keys: `addons/aioStreamsUrl`, `addons/metadataUrl`, `subtitles/language`, `ui/scaleFactor`, `imdb/lastRefresh`, `mpv/hardwareDecoding`, `mpv/gpuNext`, `mpv/hdrHint`, `mpv/extraArgs`, `playback/autoAdvance`.
+- The settings INI and `watch_history.json` hold secrets (Trakt client secret/tokens, debrid auth headers) and are chmod'd owner-only on write; keep that invariant when adding persisted state.
 - UI zoom is applied before `QGuiApplication` starts via `QT_SCALE_FACTOR`; changing it in settings requires restart.
 
 ## Product Constraints

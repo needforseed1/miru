@@ -3,6 +3,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -10,12 +11,14 @@
 #include <QTimer>
 
 #include <algorithm>
+#include <functional>
 
 namespace {
 constexpr double kMinProgress = 0.03;
 constexpr double kMaxProgress = 0.92;
 constexpr double kResumeBackoffSeconds = 5.0;
 constexpr int kMaxContinueWatching = 20;
+constexpr int kMaxWatchedEntries = 200;
 }
 
 WatchHistory::WatchHistory(QObject *parent)
@@ -89,7 +92,11 @@ void WatchHistory::record(const QVariantMap &media, double position, double dura
     }
 
     const double ratio = position / duration;
-    const bool shouldKeep = ratio >= kMinProgress && ratio < kMaxProgress;
+    // Finished items are kept (flagged watched) instead of dropped: they feed
+    // the local Next Up rail and the auto-advance "what did I just finish"
+    // lookup. Only barely-started sessions still disappear.
+    const bool watched = ratio >= kMaxProgress;
+    const bool resumable = ratio >= kMinProgress && !watched;
     bool modified = false;
 
     for (int i = 0; i < m_entries.size(); ++i) {
@@ -98,7 +105,13 @@ void WatchHistory::record(const QVariantMap &media, double position, double dura
             continue;
         }
 
-        if (!shouldKeep) {
+        if (!watched && !resumable) {
+            // Barely started. A watched entry stays watched (poking at a
+            // finished episode must not erase Next Up); an in-progress one is
+            // dropped as before.
+            if (isWatched(existing)) {
+                return;
+            }
             m_entries.removeAt(i);
         } else {
             QVariantMap updated = media;
@@ -106,25 +119,111 @@ void WatchHistory::record(const QVariantMap &media, double position, double dura
             updated.insert(QStringLiteral("position"), position);
             updated.insert(QStringLiteral("duration"), duration);
             updated.insert(QStringLiteral("updatedAt"), QDateTime::currentSecsSinceEpoch());
+            if (watched) {
+                updated.insert(QStringLiteral("watched"), true);
+            }
             m_entries[i] = updated;
         }
         modified = true;
         break;
     }
 
-    if (!modified && shouldKeep) {
+    if (!modified && (watched || resumable)) {
         QVariantMap entry = media;
         entry.insert(QStringLiteral("key"), key);
         entry.insert(QStringLiteral("position"), position);
         entry.insert(QStringLiteral("duration"), duration);
         entry.insert(QStringLiteral("updatedAt"), QDateTime::currentSecsSinceEpoch());
+        if (watched) {
+            entry.insert(QStringLiteral("watched"), true);
+        }
         m_entries.append(entry);
         modified = true;
     }
 
     if (modified) {
+        pruneWatched();
         scheduleSave();
         emit changed();
+    }
+}
+
+QVariantList WatchHistory::lastWatchedEpisodes(int maxItems) const
+{
+    // Newest watched episode per series, by activity time. Following the
+    // user's most recent action (rather than the highest episode number)
+    // means a rewatch from S1 naturally surfaces S1's next episode.
+    QHash<QString, QVariantMap> newestPerShow;
+    for (const QVariant &entry : m_entries) {
+        const QVariantMap map = entry.toMap();
+        if (!isWatched(map) || map.value(QStringLiteral("type")).toString() != QStringLiteral("series")) {
+            continue;
+        }
+        const QString baseId = map.value(QStringLiteral("baseId")).toString();
+        if (baseId.isEmpty() || map.value(QStringLiteral("season")).toInt() <= 0
+            || map.value(QStringLiteral("episode")).toInt() <= 0) {
+            continue;
+        }
+        const auto it = newestPerShow.constFind(baseId);
+        bool newer = it == newestPerShow.constEnd();
+        if (!newer) {
+            const qint64 candidateAt = map.value(QStringLiteral("updatedAt")).toLongLong();
+            const qint64 currentAt = it->value(QStringLiteral("updatedAt")).toLongLong();
+            if (candidateAt != currentAt) {
+                newer = candidateAt > currentAt;
+            } else {
+                // Same-second finishes (batch imports, tests): the higher
+                // episode wins so Next Up points past all of them.
+                const int candidateSeason = map.value(QStringLiteral("season")).toInt();
+                const int currentSeason = it->value(QStringLiteral("season")).toInt();
+                newer = candidateSeason > currentSeason
+                    || (candidateSeason == currentSeason
+                        && map.value(QStringLiteral("episode")).toInt()
+                               > it->value(QStringLiteral("episode")).toInt());
+            }
+        }
+        if (newer) {
+            newestPerShow.insert(baseId, map);
+        }
+    }
+
+    QVariantList shows;
+    for (const QVariantMap &map : newestPerShow) {
+        shows.append(map);
+    }
+    std::sort(shows.begin(), shows.end(), [](const QVariant &a, const QVariant &b) {
+        return a.toMap().value(QStringLiteral("updatedAt")).toLongLong()
+               > b.toMap().value(QStringLiteral("updatedAt")).toLongLong();
+    });
+    while (shows.size() > maxItems) {
+        shows.removeLast();
+    }
+    return shows;
+}
+
+void WatchHistory::pruneWatched()
+{
+    // Watched entries accumulate forever otherwise; drop the oldest beyond a
+    // generous cap. In-progress entries are never pruned here.
+    QList<QPair<qint64, int>> watchedByAge; // (updatedAt, index)
+    for (int i = 0; i < m_entries.size(); ++i) {
+        const QVariantMap map = m_entries.at(i).toMap();
+        if (isWatched(map)) {
+            watchedByAge.append({map.value(QStringLiteral("updatedAt")).toLongLong(), i});
+        }
+    }
+    if (watchedByAge.size() <= kMaxWatchedEntries) {
+        return;
+    }
+
+    std::sort(watchedByAge.begin(), watchedByAge.end());
+    QList<int> drop;
+    for (int i = 0; i < watchedByAge.size() - kMaxWatchedEntries; ++i) {
+        drop.append(watchedByAge.at(i).second);
+    }
+    std::sort(drop.begin(), drop.end(), std::greater<int>());
+    for (int index : drop) {
+        m_entries.removeAt(index);
     }
 }
 
@@ -235,6 +334,11 @@ bool WatchHistory::isInProgress(const QVariantMap &entry)
 
     const double ratio = position / duration;
     return ratio >= kMinProgress && ratio < kMaxProgress;
+}
+
+bool WatchHistory::isWatched(const QVariantMap &entry)
+{
+    return entry.value(QStringLiteral("watched")).toBool();
 }
 
 QString WatchHistory::storePath() const

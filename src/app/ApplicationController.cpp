@@ -139,6 +139,95 @@ bool isShortResult(const QVariantMap &item)
     return runtime > 0 && runtime < 45;
 }
 
+// Ratio at which an episode counts as finished — matches WatchHistory's
+// completed threshold and Trakt's scrobble-stop convention.
+constexpr double kWatchedRatio = 0.92;
+constexpr int kAutoAdvanceCountdownSeconds = 15;
+
+// Smallest (season, episode) strictly after the given one, skipping specials
+// (season 0) and episodes that have not aired yet. Empty when caught up.
+QVariantMap nextEpisodeVideo(const QVariantMap &meta, int season, int episode)
+{
+    QVariantMap best;
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    for (const QVariant &entry : meta.value(QStringLiteral("videos")).toList()) {
+        const QVariantMap video = entry.toMap();
+        const int s = video.value(QStringLiteral("season")).toInt();
+        const int e = video.value(QStringLiteral("episode")).toInt();
+        if (s <= 0 || e <= 0 || s < season || (s == season && e <= episode)) {
+            continue;
+        }
+        const QString released = video.value(QStringLiteral("released")).toString();
+        if (!released.isEmpty()) {
+            const QDateTime releaseDate = QDateTime::fromString(released, Qt::ISODate);
+            if (releaseDate.isValid() && releaseDate > now) {
+                continue;
+            }
+        }
+        if (!best.isEmpty()) {
+            const int bestSeason = best.value(QStringLiteral("season")).toInt();
+            const int bestEpisode = best.value(QStringLiteral("episode")).toInt();
+            if (s > bestSeason || (s == bestSeason && e >= bestEpisode)) {
+                continue;
+            }
+        }
+        best = video;
+    }
+    return best;
+}
+
+// Release name reduced to comparable tokens: episode markers stripped so the
+// same release of consecutive episodes ("...S01E05...-FLUX" vs "...S01E06...")
+// compares as near-identical.
+QString releaseComparisonKey(const QVariantMap &stream)
+{
+    QString name = stream.value(QStringLiteral("filename")).toString();
+    if (name.trimmed().isEmpty()) {
+        name = stream.value(QStringLiteral("title")).toString();
+    }
+    name = name.toLower();
+    static const QRegularExpression episodeMarker(
+        QStringLiteral("s\\d{1,2}[ ._-]*e\\d{1,3}|(?<![a-z0-9])\\d{1,2}x\\d{1,3}(?![a-z0-9])"));
+    name.remove(episodeMarker);
+    static const QRegularExpression nonAlnum(QStringLiteral("[^a-z0-9]+"));
+    name.replace(nonAlnum, QStringLiteral(" "));
+    return name.simplified();
+}
+
+// The release most similar to the one just played (token overlap plus a
+// same-quality bonus). Falls back to the addon's top pick on no signal.
+int bestMatchingStreamIndex(const QVariantMap &previous, const QVariantList &streams)
+{
+    if (streams.isEmpty()) {
+        return -1;
+    }
+    const QStringList prevTokens = releaseComparisonKey(previous).split(QLatin1Char(' '), Qt::SkipEmptyParts);
+    if (prevTokens.isEmpty()) {
+        return 0;
+    }
+    const QSet<QString> prevSet(prevTokens.begin(), prevTokens.end());
+    const QString prevQuality = previous.value(QStringLiteral("quality")).toString();
+
+    int bestIndex = 0;
+    double bestScore = -1.0;
+    for (int i = 0; i < streams.size(); ++i) {
+        const QVariantMap stream = streams.at(i).toMap();
+        const QStringList tokens = releaseComparisonKey(stream).split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        const QSet<QString> tokenSet(tokens.begin(), tokens.end());
+        const QSet<QString> intersection = QSet<QString>(prevSet).intersect(tokenSet);
+        const int unionSize = prevSet.size() + tokenSet.size() - intersection.size();
+        double score = unionSize > 0 ? static_cast<double>(intersection.size()) / unionSize : 0.0;
+        if (!prevQuality.isEmpty() && stream.value(QStringLiteral("quality")).toString() == prevQuality) {
+            score += 0.25;
+        }
+        if (score > bestScore) {
+            bestScore = score;
+            bestIndex = i;
+        }
+    }
+    return bestIndex;
+}
+
 QVariantMap healthItem(const QString &name, const QString &status,
                        const QString &detail, const QString &state)
 {
@@ -185,6 +274,8 @@ ApplicationController::ApplicationController(QObject *parent)
     QSettings settings;
     m_aioStreamsUrl = settings.value(QStringLiteral("addons/aioStreamsUrl")).toString();
     m_aioStreams.setBaseUrl(m_aioStreamsUrl);
+    m_autoAdvanceStreams.setBaseUrl(m_aioStreamsUrl);
+    m_autoAdvanceEnabled = settings.value(QStringLiteral("playback/autoAdvance"), true).toBool();
     m_metadataUrl = settings.value(QStringLiteral("addons/metadataUrl")).toString();
     m_cinemeta.setBaseUrl(m_metadataUrl);
     m_resumeMetadata.setBaseUrl(m_metadataUrl);
@@ -300,6 +391,7 @@ ApplicationController::ApplicationController(QObject *parent)
         emit sourceHealthChanged();
         emit continueWatchingChanged();
         emit nextUpChanged();
+        rebuildLocalNextUp(); // connect/disconnect switches the Next Up source
         hydrateTraktResumeMetadata();
     });
     connect(&m_trakt, &TraktClient::errorOccurred, this, [this](const QString &message) {
@@ -310,9 +402,17 @@ ApplicationController::ApplicationController(QObject *parent)
     });
 
     connect(&m_resumeMetadata, &CinemetaClient::metaReady, this,
-            [this](const QString &, const QString &, const QVariantMap &meta) {
+            [this](const QString &type, const QString &id, const QVariantMap &meta) {
         m_trakt.applyMetadata(meta);
         m_watchHistory.applyMetadata(meta);
+        if (type == QStringLiteral("series")) {
+            m_seriesMetaCache.insert(id, meta);
+            rebuildLocalNextUp();
+            if (id == m_autoAdvanceAwaitMetaId) {
+                m_autoAdvanceAwaitMetaId.clear();
+                startAutoAdvanceForMeta(id, meta, m_autoAdvanceFromSeason, m_autoAdvanceFromEpisode);
+            }
+        }
     });
     connect(&m_resumeMetadata, &CinemetaClient::errorOccurred, this, [](const QString &) {
         // Resume artwork hydration is best-effort; details/search errors still
@@ -378,12 +478,62 @@ ApplicationController::ApplicationController(QObject *parent)
         if (!m_currentPlaybackMedia.isEmpty()) {
             m_watchHistory.record(m_currentPlaybackMedia, position, duration);
             m_trakt.sendPlaybackProgress(m_currentPlaybackMedia, position, duration);
+            maybeStartAutoAdvance(m_currentPlaybackMedia, position, duration);
         }
     });
 
     connect(&m_watchHistory, &WatchHistory::changed, this, [this]() {
         emit continueWatchingChanged();
+        rebuildLocalNextUp();
         hydrateTraktResumeMetadata();
+    });
+
+    // ---- Auto-advance: countdown tick and release fetching -----------------
+    m_autoAdvanceTimer.setInterval(1000);
+    connect(&m_autoAdvanceTimer, &QTimer::timeout, this, [this]() {
+        if (!m_autoAdvanceActive) {
+            m_autoAdvanceTimer.stop();
+            return;
+        }
+        if (--m_autoAdvanceSecondsLeft > 0) {
+            emit autoAdvanceChanged();
+            return;
+        }
+        m_autoAdvanceTimer.stop();
+        if (m_autoAdvanceStreamReady) {
+            launchAutoAdvance();
+        } else {
+            // Countdown beat the release search; play as soon as it lands.
+            m_autoAdvancePlayWhenReady = true;
+            emit autoAdvanceChanged();
+        }
+    });
+
+    connect(&m_autoAdvanceStreams, &AIOStreamsClient::streamsReady, this, [this](const QVariantList &streams) {
+        if (!m_autoAdvanceActive) {
+            return;
+        }
+        if (streams.isEmpty()) {
+            cancelAutoAdvance();
+            setStatusMessage(QStringLiteral("No releases found for the next episode"));
+            return;
+        }
+        const int index = bestMatchingStreamIndex(m_autoAdvancePrevStream, streams);
+        m_autoAdvanceStream = streams.at(qMax(0, index)).toMap();
+        m_autoAdvanceStreamReady = true;
+        if (m_autoAdvancePlayWhenReady) {
+            launchAutoAdvance();
+            return;
+        }
+        emit autoAdvanceChanged();
+    });
+
+    connect(&m_autoAdvanceStreams, &AIOStreamsClient::errorOccurred, this, [this](const QString &message) {
+        if (!m_autoAdvanceActive) {
+            return;
+        }
+        cancelAutoAdvance();
+        setStatusMessage(message);
     });
 
     connect(&m_imdbRatings, &ImdbRatings::statusChanged, this, [this](const QString &message) {
@@ -420,6 +570,7 @@ ApplicationController::ApplicationController(QObject *parent)
     m_imdbRatings.init();
     m_imdbRatings.refreshIfStale();
     hydrateTraktResumeMetadata();
+    rebuildLocalNextUp();
 }
 
 QVariantList ApplicationController::withTitleRatings(const QVariantList &items) const
@@ -482,6 +633,26 @@ QVariantMap ApplicationController::mediaForStreamRequest(const QString &type, co
     }
 
     return media;
+}
+
+// Subtitles in the preferred language (a couple, mpv selects the first).
+// Kept small so attaching them does not delay playback start.
+QStringList ApplicationController::preferredSubtitleUrls() const
+{
+    QStringList subtitleUrls;
+    if (m_subtitleLanguage == QStringLiteral("off")) {
+        return subtitleUrls;
+    }
+    for (const QVariant &entry : m_currentSubtitles) {
+        const QVariantMap sub = entry.toMap();
+        if (sub.value(QStringLiteral("lang")).toString() == m_subtitleLanguage) {
+            subtitleUrls.append(sub.value(QStringLiteral("url")).toString());
+            if (subtitleUrls.size() >= 2) {
+                break;
+            }
+        }
+    }
+    return subtitleUrls;
 }
 
 QVariantMap ApplicationController::currentPlaybackMedia(const QVariantMap &stream) const
@@ -561,6 +732,84 @@ void ApplicationController::hydrateTraktResumeMetadata()
     }
 }
 
+void ApplicationController::rebuildLocalNextUp()
+{
+    // With Trakt connected, Next Up comes from Trakt; don't burn metadata
+    // requests building a list nobody reads.
+    if (m_trakt.connected()) {
+        m_localNextUp.clear();
+        return;
+    }
+
+    QSet<QString> inProgressSeries;
+    for (const QVariant &entry : m_watchHistory.inProgress()) {
+        const QVariantMap item = entry.toMap();
+        if (item.value(QStringLiteral("type")).toString() == QStringLiteral("series")) {
+            inProgressSeries.insert(item.value(QStringLiteral("baseId")).toString());
+        }
+    }
+
+    QVariantList items;
+    for (const QVariant &entry : m_watchHistory.lastWatchedEpisodes()) {
+        const QVariantMap watchedEntry = entry.toMap();
+        const QString baseId = watchedEntry.value(QStringLiteral("baseId")).toString();
+        if (inProgressSeries.contains(baseId)) {
+            continue; // already surfaced in Continue Watching
+        }
+
+        const QVariantMap meta = seriesMeta(baseId);
+        if (meta.isEmpty()) {
+            // Card appears once the episode list arrives (metaReady rebuilds).
+            const QString key = QStringLiteral("series:%1").arg(baseId);
+            if (!m_resumeMetadataRequests.contains(key)) {
+                m_resumeMetadataRequests.insert(key);
+                m_resumeMetadata.fetchMeta(QStringLiteral("series"), baseId);
+            }
+            continue;
+        }
+
+        const QVariantMap video = nextEpisodeVideo(meta,
+                                                   watchedEntry.value(QStringLiteral("season")).toInt(),
+                                                   watchedEntry.value(QStringLiteral("episode")).toInt());
+        if (video.isEmpty()) {
+            continue; // caught up with everything aired
+        }
+
+        QVariantMap item;
+        item.insert(QStringLiteral("type"), QStringLiteral("series"));
+        item.insert(QStringLiteral("id"), baseId);
+        item.insert(QStringLiteral("baseId"), baseId);
+        item.insert(QStringLiteral("season"), video.value(QStringLiteral("season")).toInt());
+        item.insert(QStringLiteral("episode"), video.value(QStringLiteral("episode")).toInt());
+        const QString name = meta.value(QStringLiteral("name")).toString();
+        item.insert(QStringLiteral("name"), name.isEmpty() ? watchedEntry.value(QStringLiteral("name")).toString() : name);
+        item.insert(QStringLiteral("episodeTitle"), video.value(QStringLiteral("title")).toString());
+        item.insert(QStringLiteral("thumbnail"), video.value(QStringLiteral("thumbnail")).toString());
+        item.insert(QStringLiteral("poster"), meta.value(QStringLiteral("poster")).toString());
+        item.insert(QStringLiteral("background"), meta.value(QStringLiteral("background")).toString());
+        item.insert(QStringLiteral("logo"), meta.value(QStringLiteral("logo")).toString());
+        item.insert(QStringLiteral("source"), QStringLiteral("localNextUp"));
+        item.insert(QStringLiteral("nextUp"), true);
+        item.insert(QStringLiteral("progressPercent"), 0.0);
+        item.insert(QStringLiteral("updatedAt"), watchedEntry.value(QStringLiteral("updatedAt")).toLongLong());
+        items.append(item);
+    }
+
+    if (m_localNextUp != items) {
+        m_localNextUp = items;
+        emit nextUpChanged();
+    }
+}
+
+QVariantMap ApplicationController::seriesMeta(const QString &baseId) const
+{
+    if (m_selectedMeta.value(QStringLiteral("id")).toString() == baseId
+        && !m_selectedMeta.value(QStringLiteral("videos")).toList().isEmpty()) {
+        return m_selectedMeta;
+    }
+    return m_seriesMetaCache.value(baseId);
+}
+
 void ApplicationController::enrichEpisodeRatings()
 {
     if (!m_imdbRatings.ready()) {
@@ -625,7 +874,7 @@ QVariantList ApplicationController::continueWatching() const
 }
 QVariantList ApplicationController::nextUp() const
 {
-    return m_trakt.connected() ? m_trakt.nextUp() : QVariantList{};
+    return m_trakt.connected() ? m_trakt.nextUp() : m_localNextUp;
 }
 QVariantMap ApplicationController::selectedMeta() const { return m_selectedMeta; }
 QVariantList ApplicationController::streams() const { return m_streams; }
@@ -802,6 +1051,7 @@ void ApplicationController::loadMeta(const QString &type, const QString &id)
 
 void ApplicationController::loadStreams(const QString &type, const QString &id)
 {
+    cancelAutoAdvance(); // the user is picking manually now
     m_streamMedia.clear();
     if (m_aioStreamsUrl.trimmed().isEmpty()) {
         m_streams.clear();
@@ -839,6 +1089,7 @@ void ApplicationController::loadStreams(const QString &type, const QString &id)
 
 void ApplicationController::clearStreams()
 {
+    cancelAutoAdvance();
     m_currentSubtitles.clear();
     m_activeSubtitleType.clear();
     m_activeSubtitleId.clear();
@@ -861,20 +1112,7 @@ void ApplicationController::playStream(int index)
     const QString url = stream.value(QStringLiteral("url")).toString();
     const QString title = stream.value(QStringLiteral("title")).toString();
     const QVariantMap headers = stream.value(QStringLiteral("headers")).toMap();
-    // Pick subtitles in the preferred language (a couple, mpv selects the
-    // first). Keep the count small so it does not delay playback start.
-    QStringList subtitleUrls;
-    if (m_subtitleLanguage != QStringLiteral("off")) {
-        for (const QVariant &entry : m_currentSubtitles) {
-            const QVariantMap sub = entry.toMap();
-            if (sub.value(QStringLiteral("lang")).toString() == m_subtitleLanguage) {
-                subtitleUrls.append(sub.value(QStringLiteral("url")).toString());
-                if (subtitleUrls.size() >= 2) {
-                    break;
-                }
-            }
-        }
-    }
+    const QStringList subtitleUrls = preferredSubtitleUrls();
 
     QVariantMap playbackMedia = currentPlaybackMedia(stream);
     if (!subtitleUrls.isEmpty()) {
@@ -927,6 +1165,12 @@ bool ApplicationController::startPlayback(const QVariantMap &playbackMedia,
     // media is still current, so the old session's position cannot be
     // recorded (or scrobbled to Trakt) against the title starting now.
     m_player.stop();
+
+    // Cancel auto-advance only *after* the stop above: its playbackFinished
+    // can re-trigger maybeStartAutoAdvance for the old episode, and this play
+    // supersedes both that and any countdown already pending. (No-op when
+    // this call is the auto-advance launch itself: it deactivates first.)
+    cancelAutoAdvance();
 
     const int generation = ++m_playbackStartGeneration;
     const QStringList extraArgs = QProcess::splitCommand(m_mpvExtraArgs);
@@ -1091,6 +1335,167 @@ void ApplicationController::setPlaybackState(bool active, const QString &title)
     emit playbackPositionChanged();
 }
 
+bool ApplicationController::autoAdvanceEnabled() const { return m_autoAdvanceEnabled; }
+bool ApplicationController::autoAdvanceActive() const { return m_autoAdvanceActive; }
+QVariantMap ApplicationController::autoAdvanceMedia() const { return m_autoAdvanceMedia; }
+int ApplicationController::autoAdvanceSecondsLeft() const { return m_autoAdvanceSecondsLeft; }
+QString ApplicationController::autoAdvanceReleaseTitle() const
+{
+    return m_autoAdvanceStream.value(QStringLiteral("title")).toString();
+}
+
+void ApplicationController::setAutoAdvanceEnabled(bool enabled)
+{
+    if (m_autoAdvanceEnabled == enabled) {
+        return;
+    }
+    m_autoAdvanceEnabled = enabled;
+    QSettings().setValue(QStringLiteral("playback/autoAdvance"), enabled);
+    if (!enabled) {
+        cancelAutoAdvance();
+    }
+    emit autoAdvanceEnabledChanged();
+    setStatusMessage(enabled ? QStringLiteral("Autoplay next episode enabled")
+                             : QStringLiteral("Autoplay next episode disabled"));
+}
+
+void ApplicationController::maybeStartAutoAdvance(const QVariantMap &media, double position, double duration)
+{
+    if (!m_autoAdvanceEnabled || m_aioStreamsUrl.trimmed().isEmpty()) {
+        return;
+    }
+    if (media.value(QStringLiteral("type")).toString() != QStringLiteral("series")) {
+        return;
+    }
+    if (duration <= 0.0 || position / duration < kWatchedRatio) {
+        return;
+    }
+    const QString baseId = media.value(QStringLiteral("baseId")).toString();
+    const int season = media.value(QStringLiteral("season")).toInt();
+    const int episode = media.value(QStringLiteral("episode")).toInt();
+    if (baseId.isEmpty() || season <= 0 || episode <= 0) {
+        return;
+    }
+
+    m_autoAdvancePrevStream = media.value(QStringLiteral("stream")).toMap();
+    const QVariantMap meta = seriesMeta(baseId);
+    if (!meta.isEmpty()) {
+        startAutoAdvanceForMeta(baseId, meta, season, episode);
+        return;
+    }
+
+    // No episode list at hand (e.g. resumed from home); fetch it and continue
+    // in the metaReady handler.
+    m_autoAdvanceAwaitMetaId = baseId;
+    m_autoAdvanceFromSeason = season;
+    m_autoAdvanceFromEpisode = episode;
+    const QString key = QStringLiteral("series:%1").arg(baseId);
+    if (!m_resumeMetadataRequests.contains(key)) {
+        m_resumeMetadataRequests.insert(key);
+        m_resumeMetadata.fetchMeta(QStringLiteral("series"), baseId);
+    }
+}
+
+void ApplicationController::startAutoAdvanceForMeta(const QString &baseId, const QVariantMap &meta,
+                                                    int season, int episode)
+{
+    const QVariantMap video = nextEpisodeVideo(meta, season, episode);
+    if (video.isEmpty()) {
+        return; // caught up with everything aired
+    }
+
+    const int nextSeason = video.value(QStringLiteral("season")).toInt();
+    const int nextEpisode = video.value(QStringLiteral("episode")).toInt();
+    QVariantMap media;
+    media.insert(QStringLiteral("type"), QStringLiteral("series"));
+    media.insert(QStringLiteral("id"), QStringLiteral("%1:%2:%3").arg(baseId).arg(nextSeason).arg(nextEpisode));
+    media.insert(QStringLiteral("baseId"), baseId);
+    media.insert(QStringLiteral("season"), nextSeason);
+    media.insert(QStringLiteral("episode"), nextEpisode);
+    media.insert(QStringLiteral("name"), meta.value(QStringLiteral("name")).toString());
+    media.insert(QStringLiteral("poster"), meta.value(QStringLiteral("poster")).toString());
+    media.insert(QStringLiteral("background"), meta.value(QStringLiteral("background")).toString());
+    media.insert(QStringLiteral("logo"), meta.value(QStringLiteral("logo")).toString());
+    media.insert(QStringLiteral("thumbnail"), video.value(QStringLiteral("thumbnail")).toString());
+    media.insert(QStringLiteral("episodeTitle"), video.value(QStringLiteral("title")).toString());
+
+    m_autoAdvanceMedia = media;
+    m_autoAdvanceStream.clear();
+    m_autoAdvanceStreamReady = false;
+    m_autoAdvancePlayWhenReady = false;
+    m_autoAdvanceActive = true;
+    m_autoAdvanceSecondsLeft = kAutoAdvanceCountdownSeconds;
+    m_autoAdvanceTimer.start();
+    emit autoAdvanceChanged();
+
+    m_autoAdvanceStreams.fetchStreams(QStringLiteral("series"), media.value(QStringLiteral("id")).toString());
+
+    // Prefetch subtitles for the upcoming episode so they are attached at
+    // launch, same as the manual flow does while the user picks a release.
+    m_currentSubtitles.clear();
+    m_activeSubtitleType.clear();
+    m_activeSubtitleId.clear();
+    if (m_subtitleLanguage != QStringLiteral("off")) {
+        m_activeSubtitleType = QStringLiteral("series");
+        m_activeSubtitleId = media.value(QStringLiteral("id")).toString();
+        m_subtitles.fetchSubtitles(m_activeSubtitleType, m_activeSubtitleId);
+    }
+}
+
+void ApplicationController::launchAutoAdvance()
+{
+    if (!m_autoAdvanceActive || m_autoAdvanceStream.isEmpty()) {
+        return;
+    }
+    QVariantMap media = m_autoAdvanceMedia;
+    const QVariantMap stream = m_autoAdvanceStream;
+    m_autoAdvanceActive = false;
+    m_autoAdvanceTimer.stop();
+    m_autoAdvancePlayWhenReady = false;
+    emit autoAdvanceChanged();
+
+    const QStringList subtitleUrls = preferredSubtitleUrls();
+    media.insert(QStringLiteral("stream"), stream);
+    if (!subtitleUrls.isEmpty()) {
+        media.insert(QStringLiteral("subtitleUrls"), subtitleUrls);
+    }
+    startPlayback(media,
+                  stream.value(QStringLiteral("url")).toString(),
+                  stream.value(QStringLiteral("title")).toString(),
+                  stream.value(QStringLiteral("headers")).toMap(),
+                  subtitleUrls, 0.0, 0.0);
+}
+
+void ApplicationController::cancelAutoAdvance()
+{
+    m_autoAdvanceAwaitMetaId.clear();
+    if (!m_autoAdvanceActive) {
+        return;
+    }
+    m_autoAdvanceActive = false;
+    m_autoAdvanceTimer.stop();
+    m_autoAdvancePlayWhenReady = false;
+    m_autoAdvanceStreamReady = false;
+    m_autoAdvanceStream.clear();
+    m_autoAdvanceMedia.clear();
+    emit autoAdvanceChanged();
+}
+
+void ApplicationController::playAutoAdvanceNow()
+{
+    if (!m_autoAdvanceActive) {
+        return;
+    }
+    if (m_autoAdvanceStreamReady) {
+        launchAutoAdvance();
+        return;
+    }
+    m_autoAdvanceTimer.stop();
+    m_autoAdvanceSecondsLeft = 0;
+    m_autoAdvancePlayWhenReady = true;
+    emit autoAdvanceChanged();
+}
+
 void ApplicationController::stopPlayback()
 {
     ++m_playbackStartGeneration;
@@ -1101,6 +1506,9 @@ void ApplicationController::stopPlayback()
         emit playbackStateChanged();
     }
     m_player.stop();
+    // An explicit stop means "stop watching": suppress the auto-advance the
+    // finish above may have queued for a ≥92% position.
+    cancelAutoAdvance();
 }
 
 void ApplicationController::setPlaybackPaused(bool paused)
@@ -1145,6 +1553,7 @@ void ApplicationController::setAioStreamsUrl(const QString &url)
 
     m_aioStreamsUrl = trimmed;
     m_aioStreams.setBaseUrl(trimmed);
+    m_autoAdvanceStreams.setBaseUrl(trimmed);
     QSettings settings;
     settings.setValue(QStringLiteral("addons/aioStreamsUrl"), trimmed);
     emit aioStreamsUrlChanged();
@@ -1163,11 +1572,13 @@ void ApplicationController::setMetadataUrl(const QString &url)
     m_cinemeta.setBaseUrl(trimmed);
     m_resumeMetadata.setBaseUrl(trimmed);
     m_resumeMetadataRequests.clear();
+    m_seriesMetaCache.clear();
     QSettings settings;
     settings.setValue(QStringLiteral("addons/metadataUrl"), trimmed);
     emit metadataUrlChanged();
     emit sourceHealthChanged();
     hydrateTraktResumeMetadata();
+    rebuildLocalNextUp();
     setStatusMessage(trimmed.isEmpty() ? QStringLiteral("Using Cinemeta for metadata")
                                        : QStringLiteral("Metadata addon configured"));
     loadHome();

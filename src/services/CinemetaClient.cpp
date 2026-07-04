@@ -10,6 +10,8 @@
 #include <QStandardPaths>
 #include <QUrl>
 
+#include <chrono>
+
 namespace {
 // Cinemeta uses "0" (and sometimes empty) as a sentinel for "no rating",
 // which is very common for episodes. Treat any non-positive value as absent.
@@ -38,6 +40,9 @@ CinemetaClient::CinemetaClient(QObject *parent)
     diskCache->setCacheDirectory(dir);
     diskCache->setMaximumCacheSize(32LL * 1024 * 1024);
     m_network.setCache(diskCache);
+    // Search is interactive; do not let a cold metadata request spin forever.
+    // getJson() retries once, which handles the common first DNS/TLS miss.
+    m_network.setTransferTimeout(std::chrono::seconds{30});
 }
 
 void CinemetaClient::fetchCatalog(const QString &type, const QString &catalogId)
@@ -79,6 +84,7 @@ void CinemetaClient::setBaseUrl(const QString &url)
     }
     m_manifestLoading = false;
     m_pendingSearches.clear();
+    prewarmConnection();
 }
 
 void CinemetaClient::discoverCatalogs()
@@ -184,16 +190,22 @@ void CinemetaClient::search(const QString &type, const QString &query)
 }
 
 void CinemetaClient::getJson(const QUrl &url, const std::function<void(const QJsonObject &)> &handler,
-                             const std::function<void()> &errorHandler)
+                             const std::function<void()> &errorHandler, int attempt)
 {
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("AIOStreamsLinux/0.1"));
 
     QNetworkReply *reply = m_network.get(request);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, handler, errorHandler]() {
+    connect(reply, &QNetworkReply::finished, this, [this, url, reply, handler, errorHandler, attempt]() {
         reply->deleteLater();
 
         if (reply->error() != QNetworkReply::NoError) {
+            // The first metadata request after a new install/build can lose the
+            // cold DNS/TLS race; retry once before treating the search as empty.
+            if (attempt == 0) {
+                getJson(url, handler, errorHandler, 1);
+                return;
+            }
             emit errorOccurred(QStringLiteral("Network error: %1").arg(reply->errorString()));
             if (errorHandler) {
                 errorHandler();
@@ -213,6 +225,19 @@ void CinemetaClient::getJson(const QUrl &url, const std::function<void(const QJs
 
         handler(document.object());
     });
+}
+
+void CinemetaClient::prewarmConnection()
+{
+    const QUrl base(activeBase());
+    if (base.host().isEmpty()) {
+        return;
+    }
+    if (base.scheme() == QStringLiteral("http")) {
+        m_network.connectToHost(base.host(), base.port(80));
+    } else {
+        m_network.connectToHostEncrypted(base.host(), base.port(443));
+    }
 }
 
 void CinemetaClient::drainPendingSearches()

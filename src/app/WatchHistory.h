@@ -15,6 +15,9 @@ public:
     ~WatchHistory() override;
 
     QVariantList inProgress() const;
+    // Newest watched series episode per show, most recent first. Feeds the
+    // local (Trakt-less) Next Up rail and the auto-advance flow.
+    QVariantList lastWatchedEpisodes(int maxItems = 15) const;
     QVariantMap entry(const QString &key) const;
     double positionFor(const QVariantMap &media) const;
 
@@ -28,9 +31,11 @@ signals:
 private:
     static QString keyForMedia(const QVariantMap &media);
     static bool isInProgress(const QVariantMap &entry);
+    static bool isWatched(const QVariantMap &entry);
 
     QString storePath() const;
     void load();
+    void pruneWatched();
     void scheduleSave();
     void saveNow();
 

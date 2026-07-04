@@ -21,6 +21,8 @@ private slots:
     void appliesLandscapeMetadataToExistingEntries();
     void persistsSeriesProgress();
     void savesWatchHistoryOwnerOnly();
+    void keepsWatchedEpisodesForNextUp();
+    void watchedFlagSurvivesBarelyStartedReplay();
 };
 
 namespace {
@@ -176,6 +178,46 @@ void WatchHistoryTest::savesWatchHistoryOwnerOnly()
     const QFileDevice::Permissions expected = QFileDevice::ReadOwner | QFileDevice::WriteOwner
         | QFileDevice::ReadUser | QFileDevice::WriteUser;
     QCOMPARE(static_cast<int>(QFile::permissions(store)), static_cast<int>(expected));
+}
+
+void WatchHistoryTest::keepsWatchedEpisodesForNextUp()
+{
+    WatchHistory history;
+
+    QVariantMap episode1 = seriesMedia();
+    history.record(episode1, 95.0, 100.0);
+
+    QVariantMap episode2 = seriesMedia();
+    episode2.insert(QStringLiteral("id"), QStringLiteral("tt0944947:1:2"));
+    episode2.insert(QStringLiteral("episode"), 2);
+    history.record(episode2, 95.0, 100.0);
+
+    // Finished episodes leave Continue Watching but stay recorded as watched.
+    QVERIFY(history.inProgress().isEmpty());
+
+    const QVariantList lastWatched = history.lastWatchedEpisodes();
+    QCOMPARE(lastWatched.size(), 1); // one card per show
+    const QVariantMap newest = lastWatched.first().toMap();
+    QCOMPARE(newest.value(QStringLiteral("baseId")).toString(), QStringLiteral("tt0944947"));
+    QCOMPARE(newest.value(QStringLiteral("season")).toInt(), 1);
+    QCOMPARE(newest.value(QStringLiteral("episode")).toInt(), 2);
+
+    // An in-progress rewatch replaces the watched flag for that episode.
+    history.record(episode2, 20.0, 100.0);
+    QCOMPARE(history.inProgress().size(), 1);
+    QCOMPARE(history.lastWatchedEpisodes().first().toMap()
+                 .value(QStringLiteral("episode")).toInt(), 1);
+}
+
+void WatchHistoryTest::watchedFlagSurvivesBarelyStartedReplay()
+{
+    WatchHistory history;
+    history.record(seriesMedia(), 95.0, 100.0);
+    QCOMPARE(history.lastWatchedEpisodes().size(), 1);
+
+    // Poking at a finished episode for a few seconds must not erase Next Up.
+    history.record(seriesMedia(), 1.0, 100.0);
+    QCOMPARE(history.lastWatchedEpisodes().size(), 1);
 }
 
 QTEST_MAIN(WatchHistoryTest)

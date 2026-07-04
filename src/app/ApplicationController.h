@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QHash>
 #include <QNetworkAccessManager>
 #include <QObject>
 #include <QSet>
@@ -53,6 +54,11 @@ class ApplicationController : public QObject
     Q_PROPERTY(bool traktConnected READ traktConnected NOTIFY traktChanged)
     Q_PROPERTY(bool traktAuthPending READ traktAuthPending NOTIFY traktChanged)
     Q_PROPERTY(bool traktBusy READ traktBusy NOTIFY traktChanged)
+    Q_PROPERTY(bool autoAdvanceEnabled READ autoAdvanceEnabled WRITE setAutoAdvanceEnabled NOTIFY autoAdvanceEnabledChanged)
+    Q_PROPERTY(bool autoAdvanceActive READ autoAdvanceActive NOTIFY autoAdvanceChanged)
+    Q_PROPERTY(QVariantMap autoAdvanceMedia READ autoAdvanceMedia NOTIFY autoAdvanceChanged)
+    Q_PROPERTY(int autoAdvanceSecondsLeft READ autoAdvanceSecondsLeft NOTIFY autoAdvanceChanged)
+    Q_PROPERTY(QString autoAdvanceReleaseTitle READ autoAdvanceReleaseTitle NOTIFY autoAdvanceChanged)
     Q_PROPERTY(bool playbackActive READ playbackActive NOTIFY playbackStateChanged)
     Q_PROPERTY(bool playbackBuffering READ playbackBuffering NOTIFY playbackStateChanged)
     Q_PROPERTY(bool playbackPaused READ playbackPaused NOTIFY playbackStateChanged)
@@ -99,6 +105,11 @@ public:
     bool traktConnected() const;
     bool traktAuthPending() const;
     bool traktBusy() const;
+    bool autoAdvanceEnabled() const;
+    bool autoAdvanceActive() const;
+    QVariantMap autoAdvanceMedia() const;
+    int autoAdvanceSecondsLeft() const;
+    QString autoAdvanceReleaseTitle() const;
     bool playbackActive() const;
     bool playbackBuffering() const;
     bool playbackPaused() const;
@@ -120,6 +131,9 @@ public:
     Q_INVOKABLE void removeContinueWatching(const QString &key);
     Q_INVOKABLE void setPendingRemoteResume(const QString &type, const QString &id, double progressPercent);
     Q_INVOKABLE void stopPlayback();
+    Q_INVOKABLE void cancelAutoAdvance();
+    Q_INVOKABLE void playAutoAdvanceNow();
+    void setAutoAdvanceEnabled(bool enabled);
     Q_INVOKABLE void setPlaybackPaused(bool paused);
     Q_INVOKABLE void seekPlayback(double seconds);
     Q_INVOKABLE void seekPlaybackRelative(double seconds);
@@ -171,6 +185,8 @@ signals:
     void mpvFullscreenChanged();
     void mpvExtraArgsChanged();
     void traktChanged();
+    void autoAdvanceEnabledChanged();
+    void autoAdvanceChanged();
     void playbackStateChanged();
     void playbackPositionChanged();
     void loadingChanged();
@@ -195,10 +211,17 @@ private:
     QVariantMap mediaForStreamRequest(const QString &type, const QString &id) const;
     QVariantMap currentPlaybackMedia(const QVariantMap &stream) const;
     void hydrateTraktResumeMetadata();
+    void rebuildLocalNextUp();
+    QVariantMap seriesMeta(const QString &baseId) const;
+    QStringList preferredSubtitleUrls() const;
+    void maybeStartAutoAdvance(const QVariantMap &media, double position, double duration);
+    void startAutoAdvanceForMeta(const QString &baseId, const QVariantMap &meta, int season, int episode);
+    void launchAutoAdvance();
 
     CinemetaClient m_cinemeta;
     CinemetaClient m_resumeMetadata;
     AIOStreamsClient m_aioStreams;
+    AIOStreamsClient m_autoAdvanceStreams; // separate client so auto-advance never clobbers the streams pane
     SubtitlesClient m_subtitles;
     ImdbRatings m_imdbRatings;
     TraktClient m_trakt;
@@ -223,6 +246,20 @@ private:
     QString m_activeSubtitleType;
     QString m_activeSubtitleId;
     QSet<QString> m_resumeMetadataRequests;
+    QHash<QString, QVariantMap> m_seriesMetaCache; // baseId -> meta, for Next Up / auto-advance
+    QVariantList m_localNextUp;
+    QTimer m_autoAdvanceTimer; // 1 s countdown tick
+    QVariantMap m_autoAdvanceMedia;
+    QVariantMap m_autoAdvanceStream;
+    QVariantMap m_autoAdvancePrevStream;
+    QString m_autoAdvanceAwaitMetaId;
+    int m_autoAdvanceFromSeason = 0;
+    int m_autoAdvanceFromEpisode = 0;
+    bool m_autoAdvanceEnabled = true;
+    bool m_autoAdvanceActive = false;
+    bool m_autoAdvanceStreamReady = false;
+    bool m_autoAdvancePlayWhenReady = false;
+    int m_autoAdvanceSecondsLeft = 0;
     QString m_pendingRemoteResumeType;
     QString m_pendingRemoteResumeId;
     double m_pendingRemoteResumePercent = 0.0;
