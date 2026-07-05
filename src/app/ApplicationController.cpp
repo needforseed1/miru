@@ -142,7 +142,7 @@ bool isShortResult(const QVariantMap &item)
 // Ratio at which an episode counts as finished — matches WatchHistory's
 // completed threshold and Trakt's scrobble-stop convention.
 constexpr double kWatchedRatio = 0.92;
-constexpr int kAutoAdvanceCountdownSeconds = 15;
+constexpr int kAutoAdvanceCountdownSeconds = 7;
 
 // Smallest (season, episode) strictly after the given one, skipping specials
 // (season 0) and episodes that have not aired yet. Empty when caught up.
@@ -276,6 +276,7 @@ ApplicationController::ApplicationController(QObject *parent)
     m_aioStreams.setBaseUrl(m_aioStreamsUrl);
     m_autoAdvanceStreams.setBaseUrl(m_aioStreamsUrl);
     m_autoAdvanceEnabled = settings.value(QStringLiteral("playback/autoAdvance"), true).toBool();
+    m_autoAdvanceCloseMpv = settings.value(QStringLiteral("playback/autoAdvanceCloseMpv"), true).toBool();
     m_metadataUrl = settings.value(QStringLiteral("addons/metadataUrl")).toString();
     m_cinemeta.setBaseUrl(m_metadataUrl);
     m_resumeMetadata.setBaseUrl(m_metadataUrl);
@@ -410,7 +411,10 @@ ApplicationController::ApplicationController(QObject *parent)
             rebuildLocalNextUp();
             if (id == m_autoAdvanceAwaitMetaId) {
                 m_autoAdvanceAwaitMetaId.clear();
-                startAutoAdvanceForMeta(id, meta, m_autoAdvanceFromSeason, m_autoAdvanceFromEpisode);
+                const bool autoAdvanceStarted = startAutoAdvanceForMeta(id, meta, m_autoAdvanceFromSeason, m_autoAdvanceFromEpisode);
+                if (autoAdvanceStarted && m_autoAdvanceCloseMpv) {
+                    m_player.stop();
+                }
             }
         }
     });
@@ -478,7 +482,10 @@ ApplicationController::ApplicationController(QObject *parent)
         if (!m_currentPlaybackMedia.isEmpty()) {
             m_watchHistory.record(m_currentPlaybackMedia, position, duration);
             m_trakt.sendPlaybackProgress(m_currentPlaybackMedia, position, duration);
-            maybeStartAutoAdvance(m_currentPlaybackMedia, position, duration);
+            const bool autoAdvanceStarted = maybeStartAutoAdvance(m_currentPlaybackMedia, position, duration);
+            if (autoAdvanceStarted && m_autoAdvanceCloseMpv && m_autoAdvanceActive) {
+                m_player.stop();
+            }
         }
     });
 
@@ -1336,6 +1343,7 @@ void ApplicationController::setPlaybackState(bool active, const QString &title)
 }
 
 bool ApplicationController::autoAdvanceEnabled() const { return m_autoAdvanceEnabled; }
+bool ApplicationController::autoAdvanceCloseMpv() const { return m_autoAdvanceCloseMpv; }
 bool ApplicationController::autoAdvanceActive() const { return m_autoAdvanceActive; }
 QVariantMap ApplicationController::autoAdvanceMedia() const { return m_autoAdvanceMedia; }
 int ApplicationController::autoAdvanceSecondsLeft() const { return m_autoAdvanceSecondsLeft; }
@@ -1359,29 +1367,41 @@ void ApplicationController::setAutoAdvanceEnabled(bool enabled)
                              : QStringLiteral("Autoplay next episode disabled"));
 }
 
-void ApplicationController::maybeStartAutoAdvance(const QVariantMap &media, double position, double duration)
+void ApplicationController::setAutoAdvanceCloseMpv(bool enabled)
+{
+    if (m_autoAdvanceCloseMpv == enabled) {
+        return;
+    }
+
+    m_autoAdvanceCloseMpv = enabled;
+    QSettings().setValue(QStringLiteral("playback/autoAdvanceCloseMpv"), enabled);
+    emit autoAdvanceCloseMpvChanged();
+    setStatusMessage(enabled ? QStringLiteral("Ended mpv windows close during autoplay")
+                             : QStringLiteral("Ended mpv windows stay open during autoplay"));
+}
+
+bool ApplicationController::maybeStartAutoAdvance(const QVariantMap &media, double position, double duration)
 {
     if (!m_autoAdvanceEnabled || m_aioStreamsUrl.trimmed().isEmpty()) {
-        return;
+        return false;
     }
     if (media.value(QStringLiteral("type")).toString() != QStringLiteral("series")) {
-        return;
+        return false;
     }
     if (duration <= 0.0 || position / duration < kWatchedRatio) {
-        return;
+        return false;
     }
     const QString baseId = media.value(QStringLiteral("baseId")).toString();
     const int season = media.value(QStringLiteral("season")).toInt();
     const int episode = media.value(QStringLiteral("episode")).toInt();
     if (baseId.isEmpty() || season <= 0 || episode <= 0) {
-        return;
+        return false;
     }
 
     m_autoAdvancePrevStream = media.value(QStringLiteral("stream")).toMap();
     const QVariantMap meta = seriesMeta(baseId);
     if (!meta.isEmpty()) {
-        startAutoAdvanceForMeta(baseId, meta, season, episode);
-        return;
+        return startAutoAdvanceForMeta(baseId, meta, season, episode);
     }
 
     // No episode list at hand (e.g. resumed from home); fetch it and continue
@@ -1394,14 +1414,15 @@ void ApplicationController::maybeStartAutoAdvance(const QVariantMap &media, doub
         m_resumeMetadataRequests.insert(key);
         m_resumeMetadata.fetchMeta(QStringLiteral("series"), baseId);
     }
+    return true;
 }
 
-void ApplicationController::startAutoAdvanceForMeta(const QString &baseId, const QVariantMap &meta,
+bool ApplicationController::startAutoAdvanceForMeta(const QString &baseId, const QVariantMap &meta,
                                                     int season, int episode)
 {
     const QVariantMap video = nextEpisodeVideo(meta, season, episode);
     if (video.isEmpty()) {
-        return; // caught up with everything aired
+        return false; // caught up with everything aired
     }
 
     const int nextSeason = video.value(QStringLiteral("season")).toInt();
@@ -1440,6 +1461,7 @@ void ApplicationController::startAutoAdvanceForMeta(const QString &baseId, const
         m_activeSubtitleId = media.value(QStringLiteral("id")).toString();
         m_subtitles.fetchSubtitles(m_activeSubtitleType, m_activeSubtitleId);
     }
+    return true;
 }
 
 void ApplicationController::launchAutoAdvance()

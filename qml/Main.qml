@@ -1329,6 +1329,12 @@ ApplicationWindow {
                         onToggled: appController.autoAdvanceEnabled = checked
                     }
                     SettingsCheck {
+                        text: "Close ended mpv window while autoplay loads next episode"
+                        checked: appController.autoAdvanceCloseMpv
+                        enabled: appController.autoAdvanceEnabled
+                        onToggled: appController.autoAdvanceCloseMpv = checked
+                    }
+                    SettingsCheck {
                         text: "Use ModernZ mpv control overlay"
                         checked: appController.mpvModernz
                         onToggled: appController.mpvModernz = checked

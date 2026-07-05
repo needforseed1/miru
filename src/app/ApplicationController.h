@@ -55,6 +55,7 @@ class ApplicationController : public QObject
     Q_PROPERTY(bool traktAuthPending READ traktAuthPending NOTIFY traktChanged)
     Q_PROPERTY(bool traktBusy READ traktBusy NOTIFY traktChanged)
     Q_PROPERTY(bool autoAdvanceEnabled READ autoAdvanceEnabled WRITE setAutoAdvanceEnabled NOTIFY autoAdvanceEnabledChanged)
+    Q_PROPERTY(bool autoAdvanceCloseMpv READ autoAdvanceCloseMpv WRITE setAutoAdvanceCloseMpv NOTIFY autoAdvanceCloseMpvChanged)
     Q_PROPERTY(bool autoAdvanceActive READ autoAdvanceActive NOTIFY autoAdvanceChanged)
     Q_PROPERTY(QVariantMap autoAdvanceMedia READ autoAdvanceMedia NOTIFY autoAdvanceChanged)
     Q_PROPERTY(int autoAdvanceSecondsLeft READ autoAdvanceSecondsLeft NOTIFY autoAdvanceChanged)
@@ -106,6 +107,7 @@ public:
     bool traktAuthPending() const;
     bool traktBusy() const;
     bool autoAdvanceEnabled() const;
+    bool autoAdvanceCloseMpv() const;
     bool autoAdvanceActive() const;
     QVariantMap autoAdvanceMedia() const;
     int autoAdvanceSecondsLeft() const;
@@ -134,6 +136,7 @@ public:
     Q_INVOKABLE void cancelAutoAdvance();
     Q_INVOKABLE void playAutoAdvanceNow();
     void setAutoAdvanceEnabled(bool enabled);
+    void setAutoAdvanceCloseMpv(bool enabled);
     Q_INVOKABLE void setPlaybackPaused(bool paused);
     Q_INVOKABLE void seekPlayback(double seconds);
     Q_INVOKABLE void seekPlaybackRelative(double seconds);
@@ -186,6 +189,7 @@ signals:
     void mpvExtraArgsChanged();
     void traktChanged();
     void autoAdvanceEnabledChanged();
+    void autoAdvanceCloseMpvChanged();
     void autoAdvanceChanged();
     void playbackStateChanged();
     void playbackPositionChanged();
@@ -214,8 +218,8 @@ private:
     void rebuildLocalNextUp();
     QVariantMap seriesMeta(const QString &baseId) const;
     QStringList preferredSubtitleUrls() const;
-    void maybeStartAutoAdvance(const QVariantMap &media, double position, double duration);
-    void startAutoAdvanceForMeta(const QString &baseId, const QVariantMap &meta, int season, int episode);
+    bool maybeStartAutoAdvance(const QVariantMap &media, double position, double duration);
+    bool startAutoAdvanceForMeta(const QString &baseId, const QVariantMap &meta, int season, int episode);
     void launchAutoAdvance();
 
     CinemetaClient m_cinemeta;
@@ -256,6 +260,7 @@ private:
     int m_autoAdvanceFromSeason = 0;
     int m_autoAdvanceFromEpisode = 0;
     bool m_autoAdvanceEnabled = true;
+    bool m_autoAdvanceCloseMpv = true;
     bool m_autoAdvanceActive = false;
     bool m_autoAdvanceStreamReady = false;
     bool m_autoAdvancePlayWhenReady = false;
