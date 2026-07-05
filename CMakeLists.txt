@@ -105,7 +105,6 @@ qt_add_qml_module(miru
         qml/components/SettingsField.qml
         qml/components/SettingsCheck.qml
         qml/components/ChoiceChip.qml
-        qml/components/ColorSettingRow.qml
         qml/components/AddonUrlField.qml
 )
 

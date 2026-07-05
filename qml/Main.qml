@@ -41,7 +41,11 @@ ApplicationWindow {
         { name: "Miru", main: "#8460ff", start: "#8460ff", end: "#ff5e9a" },
         { name: "Ocean", main: "#2f9cff", start: "#2f9cff", end: "#18d6a3" },
         { name: "Ember", main: "#ff6b35", start: "#ffb000", end: "#ff4f7b" },
-        { name: "Mint", main: "#3ddc97", start: "#3ddc97", end: "#6c8fff" }
+        { name: "Mint", main: "#3ddc97", start: "#3ddc97", end: "#6c8fff" },
+        { name: "Crimson", main: "#ff4f6e", start: "#ff4f6e", end: "#ff9d5c" },
+        { name: "Sakura", main: "#ff7eb6", start: "#ff7eb6", end: "#b18cff" },
+        { name: "Gold", main: "#f5c951", start: "#f5c951", end: "#ff6b35" },
+        { name: "Ice", main: "#4cc2ff", start: "#4cc2ff", end: "#8460ff" }
     ]
 
     // "S1 · E1" label for the selected episode, derived from "ttID:season:episode"
@@ -280,6 +284,7 @@ ApplicationWindow {
     // ===== Top bar ==========================================================
     header: Rectangle {
         implicitHeight: 64
+        visible: !root.preparingVisible
         color: Theme.glassBar
 
         Rectangle {
@@ -289,67 +294,53 @@ ApplicationWindow {
             color: Qt.rgba(1, 1, 1, 0.06)
         }
 
-        RowLayout {
+        // Home left, search truly centered, Settings right. Anchors instead of
+        // a RowLayout so the search field centers on the window, not on the
+        // leftover space between differently-sized side buttons.
+        Item {
             anchors.fill: parent
             anchors.leftMargin: Theme.s24
             anchors.rightMargin: Theme.s24
-            spacing: Theme.s16
 
-            // brand
-            Row {
-                spacing: Theme.s12
-
-                Text {
-                    text: "Miru"
-                    color: Theme.text
-                    font.pixelSize: Theme.fH3
-                    font.weight: Font.ExtraBold
-                    font.letterSpacing: -0.3
-                    anchors.verticalCenter: parent.verticalCenter
+            AppButton {
+                id: homeButton
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Home"
+                variant: "nav"
+                active: root.page === 0
+                onClicked: {
+                    searchField.clear()
+                    appController.clearSearch()
+                    root.page = 0
                 }
             }
 
             // search (Enter to search; jumps to results from anywhere)
             SearchField {
                 id: searchField
-                Layout.fillWidth: true
-                Layout.maximumWidth: 620
-                Layout.alignment: Qt.AlignVCenter
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
+                // Clamp so the centered field clears the wider side button on
+                // narrow windows.
+                width: {
+                    const clearance = Math.max(homeButton.width, settingsButton.width) + Theme.s16
+                    return Math.max(160, Math.min(620, parent.width - clearance * 2))
+                }
                 placeholderText: "Search movies and shows"
                 onAccepted: root.runSearch(text)
                 onCleared: appController.clearSearch()
             }
 
-            // primary navigation
-            RowLayout {
-                Layout.alignment: Qt.AlignVCenter
-                spacing: Theme.s12
-
-                Rectangle {
-                    Layout.preferredWidth: 1
-                    Layout.preferredHeight: 24
-                    Layout.rightMargin: Theme.s4
-                    Layout.alignment: Qt.AlignVCenter
-                    color: Qt.rgba(1, 1, 1, 0.08)
-                }
-
-                AppButton {
-                    text: "Home"
-                    variant: "nav"
-                    active: root.page === 0
-                    onClicked: {
-                        searchField.clear()
-                        appController.clearSearch()
-                        root.page = 0
-                    }
-                }
-                AppButton {
-                    text: "Settings"
-                    variant: "nav"
-                    active: root.page === 2
-                    onClicked: {
-                        root.page = 2
-                    }
+            AppButton {
+                id: settingsButton
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Settings"
+                variant: "nav"
+                active: root.page === 2
+                onClicked: {
+                    root.page = 2
                 }
             }
         }
@@ -1277,30 +1268,6 @@ ApplicationWindow {
                                     onTapped: appController.setThemeColors(modelData.main, modelData.start, modelData.end)
                                 }
                             }
-                        }
-                    }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: Theme.s8
-
-                        ColorSettingRow {
-                            Layout.fillWidth: true
-                            label: "Main color"
-                            value: appController.uiMainColor
-                            onColorAccepted: color => appController.uiMainColor = color
-                        }
-                        ColorSettingRow {
-                            Layout.fillWidth: true
-                            label: "Progress start"
-                            value: appController.uiProgressStartColor
-                            onColorAccepted: color => appController.uiProgressStartColor = color
-                        }
-                        ColorSettingRow {
-                            Layout.fillWidth: true
-                            label: "Progress end"
-                            value: appController.uiProgressEndColor
-                            onColorAccepted: color => appController.uiProgressEndColor = color
                         }
                     }
 
