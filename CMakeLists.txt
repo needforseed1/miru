@@ -36,6 +36,13 @@ qt_add_executable(miru
 )
 
 if(APPLE)
+    enable_language(OBJCXX)
+    target_sources(miru PRIVATE
+        src/platform/MacWindowChrome.h
+        src/platform/MacWindowChrome.mm
+    )
+    target_link_libraries(miru PRIVATE "-framework AppKit")
+
     set(MIRU_BUNDLED_MPV "" CACHE FILEPATH "Path to an mpv executable to copy into the macOS app bundle")
 
     set_target_properties(miru PROPERTIES

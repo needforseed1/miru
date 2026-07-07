@@ -11,6 +11,11 @@
 #include "app/ApplicationController.h"
 #include "app/CachingNetworkFactory.h"
 
+#ifdef Q_OS_MACOS
+#include <QQuickWindow>
+#include "platform/MacWindowChrome.h"
+#endif
+
 int main(int argc, char *argv[])
 {
     QCoreApplication::setApplicationName("AIOStreams Linux");
@@ -75,6 +80,14 @@ int main(int argc, char *argv[])
         Qt::QueuedConnection);
 
     engine.loadFromModule("StremioLinux", "Main");
+
+#ifdef Q_OS_MACOS
+    // Blend the title bar into the QML header: transparent titlebar, hidden
+    // title text, traffic lights floating over app content.
+    if (!engine.rootObjects().isEmpty()) {
+        MacWindowChrome::apply(qobject_cast<QQuickWindow *>(engine.rootObjects().first()));
+    }
+#endif
 
     return app.exec();
 }

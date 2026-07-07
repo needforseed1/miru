@@ -16,6 +16,10 @@ ApplicationWindow {
     title: "Miru"
     color: Theme.bg
 
+    // macOS renders the header under a transparent native titlebar (see
+    // MacWindowChrome); leave room for the traffic-light buttons.
+    readonly property bool isMac: Qt.platform.os === "osx"
+
     property int page: 0
     property var detailsItem: ({})
     property string baseId: ""
@@ -294,12 +298,21 @@ ApplicationWindow {
             color: Qt.rgba(1, 1, 1, 0.06)
         }
 
+        // macOS: with the titlebar transparent, drags on empty header space
+        // have to move the window ourselves. Child buttons and the search
+        // field still take their own pointer events first.
+        DragHandler {
+            enabled: root.isMac
+            target: null
+            onActiveChanged: if (active) root.startSystemMove()
+        }
+
         // Home left, search truly centered, Settings right. Anchors instead of
         // a RowLayout so the search field centers on the window, not on the
         // leftover space between differently-sized side buttons.
         Item {
             anchors.fill: parent
-            anchors.leftMargin: Theme.s24
+            anchors.leftMargin: Theme.s24 + (root.isMac ? 56 : 0)
             anchors.rightMargin: Theme.s24
 
             AppButton {
