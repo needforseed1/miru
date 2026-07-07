@@ -14,6 +14,10 @@ jobs:
 
       - name: Install system dependencies
         run: |
+          # packages.microsoft.com comes preconfigured on the runner image and
+          # intermittently serves invalid InRelease files; nothing in this
+          # build installs from it.
+          grep -lr packages.microsoft.com /etc/apt/sources.list.d/ | xargs -r sudo rm -f
           sudo apt-get update
           sudo apt-get install -y \
             cmake \
