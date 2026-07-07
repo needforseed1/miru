@@ -1472,6 +1472,19 @@ ApplicationWindow {
                 font.pixelSize: Theme.fBody
                 horizontalAlignment: Text.AlignHCenter
             }
+
+            AppButton {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: Theme.s8
+                text: "Cancel"
+                onClicked: appController.stopPlayback()
+            }
+        }
+
+        Shortcut {
+            sequence: "Escape"
+            enabled: root.preparingVisible
+            onActivated: appController.stopPlayback()
         }
     }
 
