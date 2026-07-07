@@ -33,20 +33,6 @@ ColumnLayout {
     onSelectedEpisodeIdChanged: syncSelectedSeason()
     onVideosChanged: syncSelectedSeason()
 
-    // Switch season and immediately select its first episode, so changing
-    // season starts a new release search without an extra click.
-    function selectSeason(season) {
-        selectedSeason = season
-        var first = null
-        for (var i = 0; i < videos.length; ++i) {
-            var v = videos[i]
-            if (v.season === season && (first === null || v.episode < first.episode))
-                first = v
-        }
-        if (first)
-            episodeSelected(first)
-    }
-
     // distinct, sorted seasons (skip specials / season 0)
     readonly property var seasons: {
         var set = {}
@@ -78,7 +64,9 @@ ColumnLayout {
                 required property var modelData
                 label: "Season " + modelData
                 current: modelData === root.selectedSeason
-                onClicked: root.selectSeason(modelData)
+                // Only switch the visible season; releases load when the user
+                // clicks an episode.
+                onClicked: root.selectedSeason = modelData
             }
         }
     }
