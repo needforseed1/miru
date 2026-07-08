@@ -1269,9 +1269,9 @@ bool ApplicationController::startPlayback(const QVariantMap &playbackMedia,
         failPreparation(QStringLiteral("Stream did not become ready: %1").arg(detail));
     });
 
-    QTimer::singleShot(30000, this, [this, generation, reply, failPreparation]() {
+    QTimer::singleShot(60000, this, [this, generation, reply, failPreparation]() {
         if (generation == m_playbackStartGeneration && m_streamProbeReply == reply) {
-            failPreparation(QStringLiteral("Stream did not become ready within 30 seconds"));
+            failPreparation(QStringLiteral("Stream did not become ready within 60 seconds"));
         }
     });
 
